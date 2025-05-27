@@ -1,8 +1,12 @@
+from typing import List
+
 from sqlalchemy.orm import Session
 
 from app.api.applications.crud import application as application_crud
 from app.api.attendees.crud import attendee as attendee_crud
+from app.api.attendees.models import AttendeeProduct
 from app.api.base_crud import CRUDBase
+from app.api.products.models import Product
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN
 from app.core.utils import current_time
@@ -30,6 +34,14 @@ class CRUDCheckIn(
             .first()
         )
 
+    def get_products_names(self, attendee_products: List[AttendeeProduct]) -> str:
+        def _get_product_name(product: AttendeeProduct) -> str:
+            if product.quantity == 1:
+                return product.product.name
+            return f'{product.product.name} x{product.quantity}'
+
+        return ', '.join([_get_product_name(p) for p in attendee_products])
+
     def new_qr_check_in(
         self,
         db: Session,
@@ -41,6 +53,8 @@ class CRUDCheckIn(
             logger.error('Attendee with code %s not found or has no products', code)
             return schemas.CheckInResponse(success=False, first_check_in=False)
 
+        products = self.get_products_names(attendee.attendee_products)
+        name = f'{attendee.name} ({products})'
         existing_check_in = self.get_check_in_by_attendee_id(db, attendee.id)
         if existing_check_in:
             logger.info('Existing check-in for attendee %s', attendee.id)
@@ -55,7 +69,7 @@ class CRUDCheckIn(
             return schemas.CheckInResponse(
                 success=True,
                 first_check_in=first_check_in,
-                name=attendee.name,
+                name=name,
                 scan_time=existing_check_in.qr_scan_timestamp,
             )
 
@@ -70,7 +84,7 @@ class CRUDCheckIn(
         return schemas.CheckInResponse(
             success=True,
             first_check_in=True,
-            name=attendee.name,
+            name=name,
             scan_time=new_check_in.qr_scan_timestamp,
         )
 
