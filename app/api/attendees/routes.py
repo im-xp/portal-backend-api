@@ -34,7 +34,15 @@ def get_tickets(
     x_api_key: str = Header(...),
     db: Session = Depends(get_db),
 ):
-    if x_api_key != settings.ATTENDEES_TICKETS_API_KEY:
+    valid_keys = [
+        k
+        for k in [
+            settings.ATTENDEES_TICKETS_API_KEY,
+            settings.ATTENDEES_TICKETS_API_KEY_2,
+        ]
+        if k
+    ]
+    if x_api_key not in valid_keys:
         raise HTTPException(status_code=403, detail='Invalid API key')
 
     attendees = attendee_crud.get_by_email(db=db, email=email)
