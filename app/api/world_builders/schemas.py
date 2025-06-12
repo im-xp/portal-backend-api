@@ -8,24 +8,24 @@ class WorldBuilderBase(BaseModel):
     first_name: str
     last_name: str
     email: str
-    phone: str
-    location: str
-    personal_links: str
-    x_handle: str
-    project_description: str
-    project_stage: str
-    funding_status: str
-    team_description: str
-    tech_stack: str
-    edge_nexus_benefit: str
-    edge_nexus_cohort: str
-    financial_situation: str
-    financial_support_reason: str
-    extra_info: str
-    integration_potential: str
-    send_proposal: bool
-    accepted: str
-    notes: str
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    personal_links: Optional[str] = None
+    x_handle: Optional[str] = None
+    project_description: Optional[str] = None
+    project_stage: Optional[str] = None
+    funding_status: Optional[str] = None
+    team_description: Optional[str] = None
+    tech_stack: Optional[str] = None
+    edge_nexus_benefit: Optional[str] = None
+    edge_nexus_cohort: Optional[str] = None
+    financial_situation: Optional[str] = None
+    financial_support_reason: Optional[str] = None
+    extra_info: Optional[str] = None
+    integration_potential: Optional[str] = None
+    send_proposal: Optional[bool] = None
+    accepted: Optional[str] = None
+    notes: Optional[str] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
