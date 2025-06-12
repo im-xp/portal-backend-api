@@ -45,6 +45,7 @@ class Settings:
     ATTENDEES_TICKETS_API_KEY_2: str = os.getenv('ATTENDEES_TICKETS_API_KEY_2')
     GROUPS_API_KEY: str = os.getenv('GROUPS_API_KEY')
     CHECK_IN_API_KEY: str = os.getenv('CHECK_IN_API_KEY')
+    WORLD_BUILDERS_API_KEY: str = os.getenv('WORLD_BUILDERS_API_KEY')
 
     APPLICATIONS_TABLE_ID: str = os.getenv('APPLICATIONS_TABLE_ID')
 

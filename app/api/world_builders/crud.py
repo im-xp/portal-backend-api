@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from app.api.base_crud import CRUDBase
@@ -14,9 +16,8 @@ class CRUDWorldBuilder(
         self,
         db: Session,
         obj: schemas.WorldBuilderCreate,
-        user: TokenData,
+        user: Optional[TokenData] = None,
     ) -> models.WorldBuilder:
-        obj.email = user.email
         return super().create(db, obj, user)
 
 
