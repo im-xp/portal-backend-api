@@ -13,3 +13,7 @@ Welcome to the documentation for EdgeOS, a FastAPI-based application that provid
 | [Email Management System](./email_management.md) | Comprehensive documentation of the email system |
 | [System Architecture](./architecture.md) | Overview of the EdgeOS architecture and component interactions |
 | [Tickets Endpoint Documentation](./tickets_endpoint.md) | Guide on how to use the /tickets API endpoint | 
+
+---
+
+**← [Back to README](../README.md)** 
