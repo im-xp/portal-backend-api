@@ -108,6 +108,7 @@ These interfaces allow you to explore and interact with the available API endpoi
 - [NocoDB Setup Guide](docs/nocodb_setup.md): Guide for connecting NocoDB to the PostgreSQL database.
 - [NocoDB Webhooks](docs/nocodb_webhooks.md): Documentation on NocoDB webhook integration and event handling.
 - [Status Calculation](docs/status_calculation.md): Explanation of the status calculation algorithms and business logic.
+- [Tickets Endpoint Documentation](docs/tickets_endpoint.md): Guide on how to use the /tickets API endpoint.
 
 
 ## Local Development
