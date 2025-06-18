@@ -2,11 +2,11 @@ from datetime import datetime
 from typing import List, Optional
 from urllib.parse import unquote
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, validate_email
 
 
 class Authenticate(BaseModel):
-    email: EmailStr
+    email: str
     popup_slug: Optional[str] = None
     use_code: Optional[bool] = False
 
@@ -20,7 +20,8 @@ class Authenticate(BaseModel):
     def decode_email(cls, value: str) -> str:
         if not value:
             raise ValueError('Email cannot be empty')
-        return unquote(value)
+        _, email = validate_email(unquote(value))
+        return email
 
 
 class CitizenBase(BaseModel):
@@ -49,7 +50,13 @@ class CitizenBase(BaseModel):
 
 
 class CitizenCreate(CitizenBase):
-    primary_email: EmailStr
+    primary_email: str
+
+    @field_validator('primary_email')
+    @classmethod
+    def validate_primary_email(cls, value: str) -> str:
+        _, email = validate_email(unquote(value))
+        return email
 
 
 class InternalCitizenCreate(CitizenCreate):
