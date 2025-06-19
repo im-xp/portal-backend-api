@@ -168,7 +168,9 @@ class CRUDCitizen(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail='Invalid signature',
                 )
+            world_app = True
         else:
+            world_app = False
             world_address = None
 
         if not citizen:
@@ -199,7 +201,9 @@ class CRUDCitizen(
                 citizen_id=citizen.id,
             )
         else:
-            email_log.send_login_mail(email, citizen.spice, citizen.id, popup_slug)
+            email_log.send_login_mail(
+                email, citizen.spice, citizen.id, popup_slug, world_app
+            )
 
         return {'message': 'Mail sent successfully'}
 

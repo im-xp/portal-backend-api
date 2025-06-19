@@ -35,6 +35,7 @@ class Settings:
     SECRET_KEY: str = os.getenv('SECRET_KEY', '')
     BACKEND_URL: str = os.getenv('BACKEND_URL')
     FRONTEND_URL: str = os.getenv('FRONTEND_URL')
+    WORLD_APP_URL: str = os.getenv('WORLD_APP_URL')
     SIMPLEFI_API_URL: str = os.getenv('SIMPLEFI_API_URL')
     NOCODB_URL: str = os.getenv('NOCODB_URL')
     NOCODB_TOKEN: str = os.getenv('NOCODB_TOKEN')

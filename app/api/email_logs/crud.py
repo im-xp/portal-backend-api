@@ -27,6 +27,7 @@ def _generate_authenticate_url(
     spice: str,
     citizen_id: int,
     popup_slug: Optional[str] = None,
+    world_app: bool = False,
 ):
     url = urllib.parse.urljoin(
         settings.BACKEND_URL,
@@ -40,9 +41,10 @@ def _generate_authenticate_url(
         },
         expires_delta=timedelta(hours=3),
     )
-    auth_url = urllib.parse.urljoin(
-        settings.FRONTEND_URL, f'/auth?token_url={token_url}'
-    )
+    frontend_url = settings.FRONTEND_URL
+    if world_app:
+        frontend_url = settings.WORLD_APP_URL
+    auth_url = urllib.parse.urljoin(frontend_url, f'/auth?token_url={token_url}')
     if popup_slug:
         auth_url += f'&popup={popup_slug}'
     return auth_url
@@ -157,9 +159,10 @@ class CRUDEmailLog(
         spice: str,
         citizen_id: int,
         popup_slug: Optional[str] = None,
+        world_app: bool = False,
     ):
         authenticate_url = _generate_authenticate_url(
-            receiver_mail, spice, citizen_id, popup_slug
+            receiver_mail, spice, citizen_id, popup_slug, world_app
         )
         params = {'the_url': authenticate_url}
         return self.send_mail(
