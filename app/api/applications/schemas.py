@@ -9,6 +9,16 @@ from app.api.products.schemas import Product
 from app.core.security import Token
 
 
+class Residency(str, Enum):
+    CRYPTO_BUILDER = 'Crypto Builder'
+    CRYPTO_RESEARCHER = 'Crypto Researcher'
+    GENERAL_ENGINEERING = 'General Engineering'
+    RESEARCHER = 'Researcher'
+    NETWORK_STATE = 'Network State Residency'
+    BIOTECH = 'Biotech / Longevity / Biohacking'
+    FOUNDER = 'Founder / Startup Residency'
+
+
 class ApplicationStatus(str, Enum):
     DRAFT = 'draft'
     IN_REVIEW = 'in review'
@@ -76,7 +86,7 @@ class ApplicationBaseCommon(BaseModel):
     scholarship_details: Optional[str] = None
     scholarship_video_url: Optional[str] = None
 
-    residencies_interested_in: Optional[list[str]] = None
+    residencies_interested_in: Optional[list[Residency]] = None
 
     requested_discount: Optional[bool] = None
     status: Optional[ApplicationStatus] = None

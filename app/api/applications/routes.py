@@ -43,6 +43,11 @@ def get_applications(
     )
 
 
+@router.get('/residencies', response_model=list[schemas.Residency])
+def get_residencies(current_user: TokenData = Depends(get_current_user)):
+    return list(schemas.Residency)
+
+
 @router.get(
     '/attendees_directory/{popup_city_id}',
     response_model=PaginatedResponse[schemas.AttendeesDirectory],
