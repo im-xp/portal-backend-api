@@ -95,6 +95,10 @@ class ApplicationBaseCommon(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+    )
+
 
 class ApplicationBase(ApplicationBaseCommon):
     citizen_id: int
@@ -121,7 +125,7 @@ class InternalApplicationCreate(ApplicationBase):
     @field_validator('email')
     @classmethod
     def clean_email(cls, value: str) -> str:
-        return value.lower().strip()
+        return value.lower()
 
 
 class Application(InternalApplicationCreate):
@@ -133,6 +137,7 @@ class Application(InternalApplicationCreate):
 
     model_config = ConfigDict(
         from_attributes=True,
+        str_strip_whitespace=True,
     )
 
 
@@ -152,3 +157,7 @@ class AttendeesDirectory(BaseModel):
     role: Union[Optional[str], Literal['*']]
     organization: Union[Optional[str], Literal['*']]
     participation: Union[Optional[list[Product]], Literal['*']]
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+    )

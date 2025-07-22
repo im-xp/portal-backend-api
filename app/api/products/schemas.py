@@ -21,6 +21,10 @@ class ProductBase(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+    )
+
 
 class ProductCreate(ProductBase):
     name: Optional[str] = None

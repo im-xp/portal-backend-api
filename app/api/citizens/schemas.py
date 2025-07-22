@@ -59,6 +59,10 @@ class CitizenBase(BaseModel):
     def decode_secondary_email(cls, value: str) -> str:
         return unquote(value) if value else None
 
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+    )
+
 
 class CitizenCreate(CitizenBase):
     primary_email: str
