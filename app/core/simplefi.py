@@ -14,7 +14,7 @@ def _create_payment_request(body: dict, simplefi_api_key: str):
             f'{settings.SIMPLEFI_API_URL}/payment_requests',
             json=body,
             headers={'Authorization': f'Bearer {simplefi_api_key}'},
-            timeout=10,
+            timeout=20,
         )
 
     try:
