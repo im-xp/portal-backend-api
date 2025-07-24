@@ -1,6 +1,10 @@
 import os
 from enum import Enum
 
+from app.core.logger import logger
+
+logger.info('Loading environment variables. Environment: %s', os.getenv('ENVIRONMENT'))
+
 
 class Environment(str, Enum):
     TEST = 'test'
