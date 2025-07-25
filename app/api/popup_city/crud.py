@@ -46,6 +46,7 @@ class CRUDPopUpCity(
                 models.EmailTemplate.frequency != '',
                 models.PopUpCity.end_date.isnot(None),
                 models.PopUpCity.end_date > week_from_now,
+                models.PopUpCity.visible_in_portal,
             )
             .all()
         )
