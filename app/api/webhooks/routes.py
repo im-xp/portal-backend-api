@@ -32,13 +32,13 @@ async def update_status_webhook(
     db: Session = Depends(get_db),
     webhook_cache: WebhookCache = Depends(get_webhook_cache),
 ):
+    logger.info('POST /update_status')
     fingerprint = f'update_status:{webhook_payload.data.table_id}:{webhook_payload.id}'
     logger.info('Fingerprint: %s', fingerprint)
     if not webhook_cache.add(fingerprint):
         logger.info('Webhook already processed. Skipping...')
         return {'message': 'Webhook already processed'}
 
-    logger.info('POST /update_status')
     if secret != settings.NOCODB_WEBHOOK_SECRET:
         logger.info('Secret is not valid. Skipping...')
         raise HTTPException(
@@ -62,6 +62,8 @@ async def update_status_webhook(
     }
     for row in webhook_payload.data.rows:
         application = db.get(Application, row.id)
+        email = application.email
+        logger.info('Processing webhook for application %s %s', application.id, email)
 
         row_dict = row.model_dump()
         reviews_status = row_dict.get('calculated_status')
