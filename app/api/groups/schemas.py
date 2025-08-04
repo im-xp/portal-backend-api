@@ -75,6 +75,8 @@ class GroupBase(BaseModel):
     discount_percentage: float
     popup_city_id: int
     max_members: Optional[int] = None
+    is_ambassador_group: bool = False
+    welcome_message: Optional[str] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, relationship
 
 from app.api.popup_city.models import PopUpCity
@@ -50,6 +50,8 @@ class Group(Base):
     discount_percentage = Column(Float, nullable=False)
     popup_city_id = Column(Integer, ForeignKey('popups.id'), index=True, nullable=False)
     max_members = Column(Integer)
+    is_ambassador_group = Column(Boolean, default=False, nullable=False)
+    welcome_message = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=current_time)
     updated_at = Column(DateTime, default=current_time, onupdate=current_time)
