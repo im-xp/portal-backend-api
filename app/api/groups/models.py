@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, relationship
@@ -77,11 +77,11 @@ class Group(Base):
         return self.popup_city.name
 
     @property
-    def express_checkout_background(self) -> str:
+    def express_checkout_background(self) -> Optional[str]:
         return self.popup_city.express_checkout_background
 
     @property
-    def web_url(self) -> str:
+    def web_url(self) -> Optional[str]:
         return self.popup_city.web_url
 
     def is_leader(self, citizen_id: int) -> bool:

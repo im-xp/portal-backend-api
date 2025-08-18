@@ -90,8 +90,8 @@ class GroupUpdate(BaseModel):
 class Group(GroupBase):
     id: int
     popup_name: str
-    express_checkout_background: str
-    web_url: str
+    express_checkout_background: Optional[str] = None
+    web_url: Optional[str] = None
 
     model_config = ConfigDict(
         from_attributes=True,
