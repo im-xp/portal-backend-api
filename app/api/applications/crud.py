@@ -420,5 +420,23 @@ class CRUDApplication(
                 detail='Cannot delete this application because it is referenced by other records',
             )
 
+    def get_distinct_emails_no_products(
+        self, db: Session, popup_city_id: int, exclude_emails: List[str] = []
+    ) -> list[models.Application]:
+        rows = (
+            db.query(models.Application)
+            .join(Attendee, Attendee.application_id == models.Application.id)
+            .outerjoin(AttendeeProduct, AttendeeProduct.attendee_id == Attendee.id)
+            .filter(
+                models.Application.email.notin_(exclude_emails),
+                models.Application.popup_city_id == popup_city_id,
+                models.Application.status == schemas.ApplicationStatus.ACCEPTED.value,
+                AttendeeProduct.attendee_id.is_(None),
+            )
+            .distinct()
+            .all()
+        )
+        return rows
+
 
 application = CRUDApplication(models.Application)

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.popup_city import schemas
 from app.api.popup_city.crud import popup_city as popup_city_crud
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import TokenData, get_current_user
 
@@ -37,3 +38,15 @@ def get_popup_city(
     if db_popup_city is None:
         raise HTTPException(status_code=404, detail='Popup city not found')
     return db_popup_city
+
+
+@router.post('/{popup_city_id}/send_reminder_emails')
+def send_reminder_emails(
+    popup_city_id: int,
+    x_api_key: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    if x_api_key != settings.REMINDER_EMAILS_API_KEY:
+        raise HTTPException(status_code=403, detail='Invalid API key')
+
+    return popup_city_crud.send_reminder_emails(db=db, popup_city_id=popup_city_id)

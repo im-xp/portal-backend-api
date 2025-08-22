@@ -57,5 +57,7 @@ class Settings:
     POAP_CLIENT_ID: str = os.getenv('POAP_CLIENT_ID')
     POAP_CLIENT_SECRET: str = os.getenv('POAP_CLIENT_SECRET')
 
+    REMINDER_EMAILS_API_KEY: str = os.getenv('REMINDER_EMAILS_API_KEY')
+
 
 settings = Settings()

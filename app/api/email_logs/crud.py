@@ -221,5 +221,15 @@ class CRUDEmailLog(
         db.commit()
         return {'message': 'Scheduled emails cancelled successfully'}
 
+    def get_email_logs(
+        self, db: Session, event: str, delta: timedelta
+    ) -> List[models.EmailLog]:
+        return (
+            db.query(self.model)
+            .filter(self.model.event == event)
+            .filter(self.model.created_at > current_time() - delta)
+            .all()
+        )
+
 
 email_log = CRUDEmailLog(models.EmailLog)
