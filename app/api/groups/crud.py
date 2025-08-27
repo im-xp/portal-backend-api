@@ -12,7 +12,8 @@ from app.api.applications.schemas import ApplicationCreate, ApplicationStatus
 from app.api.base_crud import CRUDBase
 from app.api.citizens.crud import citizen as citizens_crud
 from app.api.citizens.schemas import CitizenCreate
-from app.api.groups import models, schemas
+from app.api.groups import schemas
+from app.core import models
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN, TokenData
 from app.core.utils import current_time
