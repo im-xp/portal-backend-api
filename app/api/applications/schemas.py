@@ -161,3 +161,29 @@ class AttendeesDirectory(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
     )
+
+
+class AttendeesDirectoryFilter(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    telegram: Optional[str] = None
+    brings_kids: Optional[bool] = None
+    role: Optional[str] = None
+    organization: Optional[str] = None
+    participation: Optional[str] = None  # Week numbers comma separated. Example: '2,3'
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+    )
+
+    @field_validator('participation')
+    @classmethod
+    def parse_participation(cls, v):
+        if not isinstance(v, str):
+            return v
+
+        try:
+            return [int(week.strip()) for week in v.split(',') if week.strip()]
+        except ValueError:
+            raise ValueError('participation must be integers (e.g., "1,2")')

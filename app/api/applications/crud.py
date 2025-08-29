@@ -3,7 +3,7 @@ import string
 from typing import List, Optional, Tuple, Union
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, desc, exists
+from sqlalchemy import case, desc, exists, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, contains_eager
 
@@ -17,6 +17,7 @@ from app.api.email_logs.crud import email_log
 from app.api.email_logs.schemas import EmailEvent
 from app.api.organizations.crud import organization as organization_crud
 from app.api.popup_city.models import PopUpCity
+from app.api.products.models import Product
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN, TokenData
 from app.core.utils import current_time
@@ -307,6 +308,7 @@ class CRUDApplication(
         self,
         db: Session,
         popup_city_id: int,
+        filters: Optional[schemas.AttendeesDirectoryFilter],
         skip: int,
         limit: int,
         user: TokenData,
@@ -348,6 +350,55 @@ class CRUDApplication(
                 models.Application.id,
             )
         )
+
+        # Apply optional filters
+        if filters:
+            if filters.first_name:
+                base_query = base_query.filter(
+                    models.Application.first_name.ilike(f'%{filters.first_name}%')
+                )
+            if filters.last_name:
+                base_query = base_query.filter(
+                    models.Application.last_name.ilike(f'%{filters.last_name}%')
+                )
+            if filters.email:
+                base_query = base_query.filter(
+                    models.Application.email.ilike(f'%{filters.email}%')
+                )
+            if filters.telegram:
+                base_query = base_query.filter(
+                    models.Application.telegram.ilike(f'%{filters.telegram}%')
+                )
+            if filters.brings_kids is not None:
+                base_query = base_query.filter(
+                    models.Application.brings_kids.is_(filters.brings_kids)
+                )
+            if filters.role:
+                base_query = base_query.filter(
+                    models.Application.role.ilike(f'%{filters.role}%')
+                )
+            if filters.organization:
+                base_query = base_query.filter(
+                    models.Application.organization.ilike(f'%{filters.organization}%')
+                )
+            if filters.participation:
+                # Filter by week numbers extracted from product slugs
+                # Product slugs are in format like "week2-local-spouse", "week3-local-spouse", etc.
+                products_conditions = []
+                for week_num in filters.participation:
+                    products_conditions.append(Product.slug.like(f'week{week_num}%'))
+
+                products_conditions.append(Product.slug.like('%month%'))
+
+                if products_conditions:
+                    base_query = (
+                        base_query.join(
+                            AttendeeProduct, AttendeeProduct.attendee_id == Attendee.id
+                        )
+                        .join(Product, AttendeeProduct.product_id == Product.id)
+                        .filter(or_(*products_conditions))
+                        .distinct()
+                    )
 
         total = base_query.count()
         query_results = base_query.offset(skip).limit(limit).all()

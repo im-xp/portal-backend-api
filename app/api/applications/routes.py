@@ -54,14 +54,17 @@ def get_residencies(current_user: TokenData = Depends(get_current_user)):
 )
 def get_attendees_directory(
     popup_city_id: int,
+    filters: schemas.AttendeesDirectoryFilter = Depends(),
     skip: int = 0,
     limit: int = 100,
     current_user: TokenData = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    logger.info('Getting attendees directory: %s', filters)
     attendees, total = application_crud.get_attendees_directory(
         db=db,
         popup_city_id=popup_city_id,
+        filters=filters,
         skip=skip,
         limit=limit,
         user=current_user,
