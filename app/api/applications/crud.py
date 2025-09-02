@@ -5,7 +5,7 @@ import string
 from typing import List, Optional, Tuple, Union
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, desc, exists, or_
+from sqlalchemy import and_, case, desc, exists, not_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, contains_eager
 
@@ -397,36 +397,57 @@ class CRUDApplication(
         )
 
         if filters:
+            ins = models.Application._info_not_shared
             if filters.q:
                 search_term = f'%{filters.q}%'
                 base_query = base_query.filter(
                     or_(
-                        models.Application.first_name.ilike(search_term),
-                        models.Application.last_name.ilike(search_term),
-                        models.Application.email.ilike(search_term),
-                        models.Application.telegram.ilike(search_term),
-                        models.Application.role.ilike(search_term),
-                        models.Application.organization.ilike(search_term),
+                        and_(
+                            or_(ins.is_(None), not_(ins.ilike('%first_name%'))),
+                            models.Application.first_name.ilike(search_term),
+                        ),
+                        and_(
+                            or_(ins.is_(None), not_(ins.ilike('%last_name%'))),
+                            models.Application.last_name.ilike(search_term),
+                        ),
+                        and_(
+                            or_(ins.is_(None), not_(ins.ilike('%email%'))),
+                            models.Application.email.ilike(search_term),
+                        ),
+                        and_(
+                            or_(ins.is_(None), not_(ins.ilike('%telegram%'))),
+                            models.Application.telegram.ilike(search_term),
+                        ),
+                        and_(
+                            or_(ins.is_(None), not_(ins.ilike('%role%'))),
+                            models.Application.role.ilike(search_term),
+                        ),
+                        and_(
+                            or_(ins.is_(None), not_(ins.ilike('%organization%'))),
+                            models.Application.organization.ilike(search_term),
+                        ),
                     )
                 )
             if filters.brings_kids is not None:
                 base_query = base_query.filter(
-                    models.Application.brings_kids.is_(filters.brings_kids)
+                    and_(
+                        or_(ins.is_(None), not_(ins.ilike('%brings_kids%'))),
+                        models.Application.brings_kids.is_(filters.brings_kids),
+                    )
                 )
             if filters.participation:
-                # Filter by week numbers extracted from product slugs
-                # Product slugs are in format like "week2-local-spouse", "week3-local-spouse", etc.
                 products_conditions = [Product.slug.like('%month%')]
                 for week_num in filters.participation:
                     products_conditions.append(Product.slug.like(f'week{week_num}%'))
 
-                base_query = (
-                    base_query.join(
-                        AttendeeProduct, AttendeeProduct.attendee_id == Attendee.id
+                base_query = base_query.filter(
+                    and_(
+                        or_(ins.is_(None), not_(ins.ilike('%participation%'))),
+                        exists()
+                        .where(AttendeeProduct.attendee_id == Attendee.id)
+                        .where(AttendeeProduct.product_id == Product.id)
+                        .where(or_(*products_conditions)),
                     )
-                    .join(Product, AttendeeProduct.product_id == Product.id)
-                    .filter(or_(*products_conditions))
-                    .distinct()
                 )
 
         total = base_query.count()
