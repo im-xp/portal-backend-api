@@ -3,6 +3,8 @@ import urllib.parse
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+import requests
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.applications.models import Application
@@ -167,13 +169,20 @@ class CRUDEmailLog(
             receiver_mail, spice, citizen_id, popup_slug, world_redirect
         )
         params = {'the_url': authenticate_url}
-        return self.send_mail(
-            receiver_mail=receiver_mail,
-            event=EmailEvent.AUTH_CITIZEN_PORTAL.value,
-            params=params,
-            entity_type='citizen',
-            entity_id=citizen_id,
-        )
+        try:
+            return self.send_mail(
+                receiver_mail=receiver_mail,
+                event=EmailEvent.AUTH_CITIZEN_PORTAL.value,
+                params=params,
+                entity_type='citizen',
+                entity_id=citizen_id,
+            )
+        except requests.exceptions.HTTPError as e:
+            logger.error('Failed to send email %s: %s', receiver_mail, str(e))
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Failed to send email',
+            )
 
     def send_scheduled_mails(self, db: Session):
         scheduled_emails = (
