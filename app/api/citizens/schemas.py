@@ -45,6 +45,7 @@ class CitizenBase(BaseModel):
     telegram: Optional[str] = None
     gender: Optional[str] = None
     role: Optional[str] = None
+    organization: Optional[str] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -86,6 +87,7 @@ class CitizenUpdate(BaseModel):
     telegram: Optional[str] = None
     gender: Optional[str] = None
     role: Optional[str] = None
+    organization: Optional[str] = None
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
