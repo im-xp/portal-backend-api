@@ -327,11 +327,22 @@ class CRUDCitizen(
             popups_data.append(_popup_data)
             total_days += _popup_data['total_days']
 
+        # Count the amount of applications with a payment for the ambassador group
+        attendee_ids = set()
+        for group in citizen.groups_as_ambassador:
+            for application in group.applications:
+                for payment in application.payments:
+                    if payment.group_id == group.id and payment.status == 'approved':
+                        for product in payment.products_snapshot:
+                            attendee_ids.add(product.attendee_id)
+
+        referral_count = len(attendee_ids)
         citizen_data = schemas.Citizen.model_validate(citizen).model_dump()
         return schemas.CitizenProfile(
             **citizen_data,
             popups=popups_data,
             total_days=total_days,
+            referral_count=referral_count,
         )
 
 

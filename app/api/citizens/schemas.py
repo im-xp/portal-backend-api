@@ -113,6 +113,7 @@ class CitizenPopupData(BaseModel):
 class CitizenProfile(Citizen):
     popups: List[CitizenPopupData]
     total_days: int
+    referral_count: int
 
 
 class CitizenFilter(BaseModel):

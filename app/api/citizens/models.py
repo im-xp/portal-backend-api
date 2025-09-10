@@ -71,6 +71,9 @@ class Citizen(Base):
     groups_as_member: Mapped[List['Group']] = relationship(
         'Group', secondary='group_members', back_populates='members'
     )
+    groups_as_ambassador: Mapped[List['Group']] = relationship(
+        'Group', back_populates='ambassador', foreign_keys='Group.ambassador_id'
+    )
 
     # Replace the single organization relationship with many-to-many
     organizations: Mapped[List['Organization']] = relationship(
