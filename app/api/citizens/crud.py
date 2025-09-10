@@ -322,6 +322,7 @@ class CRUDCitizen(
         popups_data = []
         total_days = 0
         for application in citizen.applications:
+            logger.info('Getting popup data for application: %s', application.id)
             _popup_data = self._get_popup_data(application)
             if not _popup_data:
                 continue
