@@ -288,10 +288,10 @@ class CRUDCitizen(
 
     def _get_popup_data(self, application: Application) -> dict:
         main_attendee = application.get_main_attendee()
-        start_date, end_date = None, None
-        if not main_attendee.products:
+        if not main_attendee or not main_attendee.products:
             return None
 
+        start_date, end_date = None, None
         for product in main_attendee.products:
             if not start_date:
                 start_date = product.start_date
