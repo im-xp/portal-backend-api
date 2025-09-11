@@ -19,6 +19,7 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from xml.sax.saxutils import escape
 
 from app.api.payments import models
 
@@ -201,8 +202,9 @@ def generate_invoice_pdf(
             unit_in_currency = unit_price_usd / payment.rate
             total_unit = unit_in_currency * qty
             total_after_discount = total_unit * (1 - (discount or 0) / 100)
-            description = f'{item.product_name} - {popup_name}'
-            row = [str(qty), description, f'{format_money(unit_price_usd)} USD']
+            desc_text = f'{item.product_name} - {popup_name}'
+            desc_para = Paragraph(escape(desc_text), styles['Body'])
+            row = [str(qty), desc_para, f'{format_money(unit_price_usd)} USD']
             if show_discount:
                 row.append(f'{discount:.0f}%')
             row.append(f'1 {payment.currency} = {format_money(payment.rate)} USD')
@@ -213,7 +215,8 @@ def generate_invoice_pdf(
             # Currency is USD or 1:1; keep it simple
             total_unit = unit_price_usd * qty
             total_after_discount = total_unit * (1 - (discount or 0) / 100)
-            row = [str(qty), item.product_name, f'{format_money(unit_price_usd)} USD']
+            desc_para = Paragraph(escape(item.product_name), styles['Body'])
+            row = [str(qty), desc_para, f'{format_money(unit_price_usd)} USD']
             if show_discount:
                 row.append(f'{discount:.0f}%')
             row.append(
@@ -319,6 +322,7 @@ def generate_invoice_pdf(
                 ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                 ('TOPPADDING', (0, 0), (-1, -1), 4),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('WORDWRAP', (1, 1), (1, -1), 'CJK'),
             ]
         )
     )
