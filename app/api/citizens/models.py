@@ -95,7 +95,11 @@ class Citizen(Base):
         return None
 
     def get_authorization(self) -> Token:
-        data = {'citizen_id': self.id, 'email': self.primary_email}
+        data = {
+            'citizen_id': self.id,
+            'email': self.primary_email,
+            'iat': int(current_time().timestamp()),
+        }
         if self.third_party_app:
             data['third_party_app'] = self.third_party_app
         return Token(
