@@ -41,6 +41,7 @@ class Attendee(Base):
     name = Column(String, nullable=False)
     category = Column(String, nullable=False)
     email = Column(String)
+    gender = Column(String)
     poap_url = Column(String)
     check_in_code = Column(String, nullable=False)
 

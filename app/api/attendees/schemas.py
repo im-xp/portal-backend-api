@@ -12,6 +12,7 @@ class AttendeeBase(BaseModel):
     category: str
     check_in_code: str
     email: Optional[str] = None
+    gender: Optional[str] = None
     group_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -21,6 +22,7 @@ class AttendeeCreate(BaseModel):
     name: str
     category: str
     email: Optional[str] = None
+    gender: Optional[str] = None
     group_id: Optional[int] = None
 
     @field_validator('email')
@@ -39,6 +41,7 @@ class InternalAttendeeCreate(AttendeeCreate):
 class AttendeeUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
+    gender: Optional[str] = None
     category: Optional[str] = None
 
     @field_validator('email')

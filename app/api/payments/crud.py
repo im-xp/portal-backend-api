@@ -1,3 +1,4 @@
+import base64
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -8,11 +9,12 @@ from app.api.attendees.models import Attendee, AttendeeProduct
 from app.api.base_crud import CRUDBase
 from app.api.coupon_codes.crud import coupon_code as coupon_code_crud
 from app.api.email_logs.crud import email_log
-from app.api.email_logs.schemas import EmailEvent
+from app.api.email_logs.schemas import EmailAttachment, EmailEvent
 from app.api.payments import schemas
 from app.api.payments.schemas import PaymentSource
 from app.api.products.models import Product
 from app.core import models, payments_utils
+from app.core.invoice import generate_invoice_pdf
 from app.core.logger import logger
 from app.core.security import TokenData
 
@@ -156,14 +158,31 @@ class CRUDPayment(
                 ticket_list.append(f'{product_snapshot.product_name} ({attendee.name})')
 
         checkout_url = group.express_checkout_url() if group else ''
+        first_name = payment.application.first_name
         params = {
             'ticket_list': ', '.join(ticket_list),
-            'first_name': payment.application.first_name,
+            'first_name': first_name,
             'checkout_url': checkout_url,
         }
         event = EmailEvent.PAYMENT_CONFIRMED.value
         if payment.edit_passes and payment.amount == 0:
             event = EmailEvent.EDIT_PASSES_CONFIRMED.value
+
+        client_name = f'{first_name} {payment.application.last_name}'
+        encoded_pdf = generate_invoice_pdf(
+            payment,
+            client_name,
+            payment.discount_value,
+            payment.application.popup_city.image_url,
+        )
+        attachments = [
+            EmailAttachment(
+                name=f'invoice_{payment.id}.pdf',
+                content_id='invoice',
+                content=encoded_pdf,
+                content_type='application/pdf',
+            )
+        ]
         email_log.send_mail(
             receiver_mail=payment.application.citizen.primary_email,
             event=event,
@@ -171,6 +190,7 @@ class CRUDPayment(
             popup_city=payment.application.popup_city,
             entity_type='payment',
             entity_id=payment.id,
+            attachments=attachments,
         )
 
     def _create_ambassador_group(
