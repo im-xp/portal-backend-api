@@ -325,9 +325,6 @@ class CRUDCitizen(
 
     def _get_popup_data(self, application: Application) -> dict:
         main_attendee = application.get_main_attendee()
-        if not main_attendee.products:
-            return None
-
         popup = application.popup_city
         if not main_attendee:
             if not application.total_days:
@@ -340,6 +337,9 @@ class CRUDCitizen(
                 'location': popup.location,
                 'image_url': popup.image_url,
             }
+
+        if not main_attendee.products:
+            return None
 
         total_days = 0
         for product in main_attendee.products:
