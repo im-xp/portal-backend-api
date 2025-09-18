@@ -330,6 +330,7 @@ class CRUDCitizen(
             if not application.total_days:
                 return None
             return {
+                'id': popup.id,
                 'popup_name': popup.name,
                 'start_date': popup.start_date,
                 'end_date': popup.end_date,
@@ -347,6 +348,7 @@ class CRUDCitizen(
                 total_days += (product.end_date - product.start_date).days + 1
 
         return {
+            'id': popup.id,
             'popup_name': popup.name,
             'start_date': popup.start_date,
             'end_date': popup.end_date,

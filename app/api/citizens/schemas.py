@@ -122,6 +122,7 @@ class Citizen(CitizenBase):
 
 
 class CitizenPopupData(BaseModel):
+    id: int
     popup_name: str
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
