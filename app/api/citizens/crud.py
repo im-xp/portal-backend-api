@@ -340,6 +340,8 @@ class CRUDCitizen(
             }
 
         if not main_attendee.products:
+            if not application.total_days:
+                return None
             return {
                 'id': popup.id,
                 'popup_name': popup.name,
