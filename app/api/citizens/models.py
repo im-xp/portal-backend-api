@@ -60,6 +60,7 @@ class Citizen(Base):
     world_address = Column(String)
     referral = Column(String)
     picture_url = Column(String)
+    red_flag = Column(Boolean, default=False)
 
     email_validated = Column(Boolean, default=False)
     spice = Column(String)

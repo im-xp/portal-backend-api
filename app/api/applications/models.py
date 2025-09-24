@@ -212,6 +212,10 @@ class Application(Base):
             if attendee.category == 'main':
                 return attendee
 
+    @property
+    def red_flag(self) -> bool:
+        return self.citizen.red_flag
+
 
 def setup_relationships():
     from app.api.groups.models import Group
