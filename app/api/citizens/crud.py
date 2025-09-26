@@ -214,10 +214,11 @@ class CRUDCitizen(
         self,
         db: Session,
         *,
-        data: schemas.AuthenticateThirdParty,
+        email: str,
+        app_name: str,
     ) -> dict:
-        logger.info('Authenticate third-party request: %s', data)
-        citizen = self.get_by_email(db, data.email)
+        logger.info('Authenticate third-party request: %s %s', email, app_name)
+        citizen = self.get_by_email(db, email)
         if not citizen:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -226,17 +227,17 @@ class CRUDCitizen(
 
         citizen.code = random.randint(100000, 999999)
         citizen.code_expiration = current_time() + timedelta(minutes=5)
-        citizen.third_party_app = data.app_name
+        citizen.third_party_app = app_name
         db.commit()
         db.refresh(citizen)
 
         params = {
             'code': citizen.code,
-            'email': data.email,
-            'app_name': data.app_name,
+            'email': email,
+            'app_name': app_name,
         }
         email_log.send_mail(
-            data.email,
+            email,
             event=EmailEvent.AUTH_CITIZEN_THIRD_PARTY.value,
             params=params,
             entity_type='citizen',

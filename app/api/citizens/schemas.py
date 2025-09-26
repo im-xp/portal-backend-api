@@ -37,7 +37,6 @@ class Authenticate(BaseModel):
 
 class AuthenticateThirdParty(BaseModel):
     email: str
-    app_name: str
 
     model_config = ConfigDict(
         str_strip_whitespace=True,

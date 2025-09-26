@@ -1,11 +1,14 @@
 from typing import Optional
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import validate_email
 from pydantic_core import PydanticCustomError
 from sqlalchemy.orm import Session
 
+from app.api.authorized_third_party_apps.crud import (
+    authorized_third_party_app as authorized_third_party_app_crud,
+)
 from app.api.citizens import schemas
 from app.api.citizens.crud import citizen as citizen_crud
 from app.core.database import get_db
@@ -39,12 +42,19 @@ def authenticate(
 @router.post('/authenticate-third-party')
 def authenticate_third_party(
     data: schemas.AuthenticateThirdParty,
+    x_api_key: str = Header(...),
     db: Session = Depends(get_db),
 ):
     logger.info('Authenticating third-party citizen: %s', data)
+    authorized_third_party_app = authorized_third_party_app_crud.get_by_api_key(
+        db=db, api_key=x_api_key
+    )
+    if not authorized_third_party_app:
+        raise HTTPException(status_code=401, detail='Invalid API key')
     return citizen_crud.authenticate_third_party(
         db=db,
-        data=data,
+        email=data.email,
+        app_name=authorized_third_party_app.name,
     )
 
 
