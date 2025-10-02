@@ -187,7 +187,7 @@ class CRUDCitizen(
                 citizen.code_expiration = code_expiration
                 citizen.third_party_app = None
 
-            if not citizen.world_address:
+            if not citizen.world_address and world_address:
                 citizen.world_address = world_address
             
             db.commit()
