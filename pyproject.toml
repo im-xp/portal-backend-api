@@ -1,5 +1,5 @@
 [project]
-name = "citizen-portal-api"
+name = "EdgeOS API"
 version = "0.1.0"
 description = "API backend for EdgeOS"
 readme = "README.md"
