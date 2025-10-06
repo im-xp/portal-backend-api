@@ -89,3 +89,6 @@ dependencies = [
     "websockets==14.1",
     "zipp==3.21.0",
 ]
+
+[tool.ruff.format]
+quote-style = "single"
