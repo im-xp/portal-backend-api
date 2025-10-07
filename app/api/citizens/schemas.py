@@ -13,6 +13,7 @@ class Authenticate(BaseModel):
     signature: Optional[str] = None
     world_address: Optional[str] = None
     world_redirect: bool = False
+    source: Optional[str] = None
 
     model_config = ConfigDict(
         str_strip_whitespace=True,

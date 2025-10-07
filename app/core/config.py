@@ -35,6 +35,8 @@ class Settings:
     SECRET_KEY: str = os.getenv('SECRET_KEY', '')
     BACKEND_URL: str = os.getenv('BACKEND_URL')
     FRONTEND_URL: str = os.getenv('FRONTEND_URL')
+    WORLD_EDGE_APP_ID: str = os.getenv('WORLD_EDGE_APP_ID')
+    WORLD_EDGE_APP_TOKEN: str = os.getenv('WORLD_EDGE_APP_TOKEN')
     WORLD_APP_URL: str = os.getenv('WORLD_APP_URL')
     SIMPLEFI_API_URL: str = os.getenv('SIMPLEFI_API_URL')
     NOCODB_URL: str = os.getenv('NOCODB_URL')

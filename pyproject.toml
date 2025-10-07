@@ -1,7 +1,7 @@
 [project]
-name = "citizen-portal-api"
+name = "EdgeOS"
 version = "0.1.0"
-description = "Add your description here"
+description = "API backend for EdgeOS"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -89,3 +89,6 @@ dependencies = [
     "websockets==14.1",
     "zipp==3.21.0",
 ]
+
+[tool.ruff.format]
+quote-style = "single"

@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.achievements.routes import router as achievements_router
 from app.api.applications.routes import router as applications_router
 from app.api.attendees.routes import router as attendees_router
 from app.api.check_in.routes import router as check_in_router
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, version='0.1.1')
 
 # Include routers
+app.include_router(achievements_router, prefix='/achievements', tags=['Achievements'])
 app.include_router(applications_router, prefix='/applications', tags=['Applications'])
 app.include_router(attendees_router, prefix='/attendees', tags=['Attendees'])
 app.include_router(check_in_router, prefix='/check-in', tags=['Check In'])
