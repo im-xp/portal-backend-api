@@ -158,6 +158,7 @@ class AttendeeInfo(BaseModel):
 
 class AttendeesDirectory(BaseModel):
     id: int
+    citizen_id: int
     first_name: Union[Optional[str], Literal['*']]
     last_name: Union[Optional[str], Literal['*']]
     email: Union[Optional[str], Literal['*']]

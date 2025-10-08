@@ -490,6 +490,7 @@ class CRUDApplication(
 
             a = {
                 'id': application.id,
+                'citizen_id': application.citizen_id,
                 'first_name': application.first_name,
                 'last_name': application.last_name,
                 'email': application.email,
