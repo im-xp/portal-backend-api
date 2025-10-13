@@ -24,6 +24,7 @@ class Achievement(Base):
     receiver_id = Column(Integer, ForeignKey('humans.id'), index=True, nullable=False)
     achievement_type = Column(String, nullable=False)
     sent_at = Column(DateTime, default=current_time, nullable=False)
+    message = Column(String, nullable=True)
 
     # Relationships to Citizen model
     sender: Mapped['Citizen'] = relationship('Citizen', foreign_keys=[sender_id])
