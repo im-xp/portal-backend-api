@@ -16,6 +16,7 @@ class EmailStatus(str, Enum):
 class EmailEvent(str, Enum):
     APPLICATION_RECEIVED = 'application-received'
     AUTH_CITIZEN_PORTAL = 'auth-citizen-portal'
+    AUTH_CITIZEN_APP = 'auth-citizen-by-code-1',
     AUTH_CITIZEN_BY_CODE = 'auth-citizen-by-code'
     AUTH_CITIZEN_THIRD_PARTY = 'auth-third-party'
     PAYMENT_CONFIRMED = 'payment-confirmed'

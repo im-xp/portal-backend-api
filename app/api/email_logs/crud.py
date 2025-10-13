@@ -164,15 +164,20 @@ class CRUDEmailLog(
         citizen_id: int,
         popup_slug: Optional[str] = None,
         world_redirect: bool = False,
+        source: Optional[str] = None,
     ):
         authenticate_url = _generate_authenticate_url(
             receiver_mail, spice, citizen_id, popup_slug, world_redirect
         )
         params = {'the_url': authenticate_url}
+        if source == 'app':
+            event = EmailEvent.AUTH_CITIZEN_APP.value
+        else:
+            event = EmailEvent.AUTH_CITIZEN_PORTAL.value
         try:
             return self.send_mail(
                 receiver_mail=receiver_mail,
-                event=EmailEvent.AUTH_CITIZEN_PORTAL.value,
+                event=event,
                 params=params,
                 entity_type='citizen',
                 entity_id=citizen_id,

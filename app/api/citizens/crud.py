@@ -216,6 +216,7 @@ class CRUDCitizen(
                 citizen.id,
                 data.popup_slug,
                 data.world_redirect,
+                source=data.source,
             )
 
         return {'message': 'Mail sent successfully'}
