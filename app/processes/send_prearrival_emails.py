@@ -15,6 +15,7 @@ from app.api.email_logs.models import EmailLog
 from app.api.email_logs.schemas import EmailAttachment, EmailEvent
 from app.api.popup_city.models import PopUpCity
 from app.core import models  # noqa: F401
+from app.core.config import Environment, settings
 from app.core.database import SessionLocal
 from app.core.logger import logger
 from app.core.utils import current_time
@@ -126,7 +127,6 @@ def get_applications_for_prearrival(db: Session):
         .filter(
             PopUpCity.slug == POPUP_CITY_SLUG,
             Application.email.notin_(excluded_emails),
-            Application.email == 'francisco@muvinai.com',
         )
         .distinct()
         .all()
@@ -175,6 +175,7 @@ def process_application_for_prearrival(application: Application):
 
     logger.info('Sending pre-arrival email to %s', application.email)
 
+    return
     email_log_crud.send_mail(
         receiver_mail=application.email,
         event=EmailEvent.PRE_ARRIVAL.value,
@@ -203,6 +204,15 @@ def send_prearrival_emails(db: Session):
 
 
 def main():
+    if settings.ENVIRONMENT != Environment.PRODUCTION:
+        logger.info(
+            'Not running pre-arrival email process in %s environment',
+            settings.ENVIRONMENT,
+        )
+        logger.info('Sleeping for 10 hours...')
+        time.sleep(10 * 60 * 60)
+        return
+
     dt = current_time()
     if not (22 <= dt.hour <= 23):
         logger.info(
