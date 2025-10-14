@@ -63,6 +63,7 @@ def login(
     email: str,
     spice: Optional[str] = None,
     code: Optional[int] = None,
+    world_address: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     try:
@@ -77,8 +78,15 @@ def login(
             status_code=400, detail='Either spice or code must be provided'
         )
 
-    citizen = citizen_crud.login(db=db, email=email, spice=spice, code=code)
+    citizen = citizen_crud.login(db=db, email=email, spice=spice, code=code, world_address=world_address)
     return citizen.get_authorization()
+
+@router.post('/app-logout')
+def logout(
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return citizen_crud.logout(db=db, user=current_user)
 
 
 # Get all citizens

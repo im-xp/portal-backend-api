@@ -182,7 +182,7 @@ class CRUDCitizen(
                 primary_email=data.email,
                 code=code,
                 code_expiration=code_expiration,
-                world_address=world_address,
+           
             )
             citizen = self.create(db, to_create)
         else:
@@ -191,9 +191,6 @@ class CRUDCitizen(
                 citizen.code = code
                 citizen.code_expiration = code_expiration
                 citizen.third_party_app = None
-
-            if not citizen.world_address and world_address:
-                citizen.world_address = world_address
 
             db.commit()
             db.refresh(citizen)
@@ -264,12 +261,31 @@ class CRUDCitizen(
 
         return {'message': 'Mail sent successfully'}
 
+    def logout(
+        self,
+        db: Session,
+        *,
+        user: TokenData,
+    ) -> dict:
+        # Get the citizen using the authenticated user's ID
+        logger.info('Logging out citizen: %s', user)
+        citizen = self.get(db, user.citizen_id, user)
+        logger.info('Logging out citizen: %s', citizen.primary_email)
+        if citizen.world_address:
+            logger.info('Clearing world address for citizen: %s', citizen.world_address)
+            citizen.world_address = None
+            db.commit()
+            db.refresh(citizen)
+
+        return {'message': 'Logged out successfully'}
+
     def login(
         self,
         db: Session,
         *,
         email: str,
         spice: Optional[str] = None,
+        world_address: Optional[str] = None,
         code: Optional[int] = None,
     ) -> models.Citizen:
         if not spice and not code:
@@ -299,7 +315,8 @@ class CRUDCitizen(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail='Code expired',
                 )
-
+        if world_address:
+            citizen.world_address = world_address
         citizen.email_validated = True
         db.commit()
         db.refresh(citizen)
