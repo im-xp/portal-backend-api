@@ -78,6 +78,7 @@ class CRUDAchievement(
                 reciever_adress=receiver_citizen.world_address,
                 receiver=receiver_citizen,
                 sender=sender_citizen,
+                achievement_type=obj_data['achievement_type'],
             )
         else:
             logger.info('No citizen found or no world_address')
@@ -185,6 +186,7 @@ class CRUDAchievement(
         reciever_adress: str,
         receiver: citizen_models.Citizen,
         sender: citizen_models.Citizen,
+        achievement_type: str,
     ) -> bool:
         """Send a notification to the world app"""
         logger.info('Sending notification to %s', reciever_adress)
@@ -194,6 +196,8 @@ class CRUDAchievement(
             'Authorization': f'Bearer {settings.WORLD_EDGE_APP_TOKEN}',
             'Content-Type': 'application/json',
         }
+        message = f'{sender.first_name} {sender.last_name} has sent you {"an" if achievement_type == "achievement" else "a"} {achievement_type}!'
+        print(message)
         data = {
             'app_id': settings.WORLD_EDGE_APP_ID,
             'wallet_addresses': [reciever_adress],
@@ -202,7 +206,7 @@ class CRUDAchievement(
                 {
                     'language': 'en',
                     'title': f'{sender.first_name} sent you a star',
-                    'message': f'{sender.first_name} {sender.last_name} has sent you an achievement!',
+                    'message': message,
                 }
             ],
         }
