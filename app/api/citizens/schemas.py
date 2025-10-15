@@ -2,12 +2,18 @@ from datetime import datetime
 from typing import List, Optional
 from urllib.parse import unquote
 
-from pydantic import BaseModel, ConfigDict, field_validator, validate_email
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    field_validator,
+    model_validator,
+    validate_email,
+)
 from web3 import Web3
 
 
 class Authenticate(BaseModel):
-    email: str
+    email: Optional[str] = None
     popup_slug: Optional[str] = None
     use_code: Optional[bool] = False
     signature: Optional[str] = None
@@ -24,7 +30,7 @@ class Authenticate(BaseModel):
     @classmethod
     def decode_email(cls, value: str) -> str:
         if not value:
-            raise ValueError('Email cannot be empty')
+            return None
         _, email = validate_email(unquote(value))
         return email
 
@@ -33,7 +39,21 @@ class Authenticate(BaseModel):
     def decode_world_address(cls, value: str) -> str:
         if not value:
             return None
-        return Web3.to_checksum_address(value)
+        return value.lower()
+
+    @model_validator(mode='after')
+    def validate_email_requirement(self):
+        # If source is 'app', email is optional (can use world_address instead)
+        if self.source == 'app':
+            if not self.email and not self.world_address:
+                raise ValueError(
+                    'Either email or world_address must be provided when source is app'
+                )
+        else:
+            # For other sources, email is required
+            if not self.email:
+                raise ValueError('Email is required when source is not app')
+        return self
 
 
 class AuthenticateThirdParty(BaseModel):
