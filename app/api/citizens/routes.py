@@ -197,5 +197,3 @@ def get_citizen_by_email(
     if not citizen:
         raise HTTPException(status_code=404, detail='Citizen not found')
     return citizen
-
-

@@ -106,6 +106,7 @@ def get_attendees_directory_csv(
         },
     )
 
+
 @router.get('/world-addresses/{popup_city_id}/csv')
 def get_world_addresses_csv(
     popup_city_id: int,
@@ -113,14 +114,16 @@ def get_world_addresses_csv(
     db: Session = Depends(get_db),
 ):
     """Get all citizens with world addresses from applications in a popup city as CSV
-    
+
     Authentication: API key required via X-API-Key header
     """
     # Validate API key
     if x_api_key != settings.API_KEY_WORLD_ADDRESSES:
         raise HTTPException(status_code=401, detail='Invalid API key')
-    
-    logger.info('Getting citizens with world addresses as CSV for popup city: %s', popup_city_id)
+
+    logger.info(
+        'Getting citizens with world addresses as CSV for popup city: %s', popup_city_id
+    )
     applications_with_world_addresses = (
         db.query(Citizen.world_address)
         .join(models.Application, models.Application.citizen_id == Citizen.id)
@@ -131,19 +134,19 @@ def get_world_addresses_csv(
         )
         .all()
     )
-    
+
     output = io.StringIO()
     writer = csv.writer(output)
-    
+
     # Write header
     writer.writerow(['World Address'])
-    
+
     # Write data rows - only world addresses
     for (world_address,) in applications_with_world_addresses:
         writer.writerow([world_address])
-    
+
     csv_content = output.getvalue()
-    
+
     return Response(
         content=csv_content,
         media_type='text/csv',
