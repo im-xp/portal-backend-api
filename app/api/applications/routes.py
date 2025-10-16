@@ -106,44 +106,70 @@ def get_attendees_directory_csv(
         },
     )
 
+
 @router.get('/world-addresses/{popup_city_id}/csv')
 def get_world_addresses_csv(
     popup_city_id: int,
     x_api_key: str = Header(...),
+    filters: schemas.AttendeesDirectoryFilter = Depends(),
+    skip: int = 0,
+    limit: int = 9999,
     db: Session = Depends(get_db),
 ):
     """Get all citizens with world addresses from applications in a popup city as CSV
-    
+
     Authentication: API key required via X-API-Key header
     """
     # Validate API key
     if x_api_key != settings.API_KEY_WORLD_ADDRESSES:
         raise HTTPException(status_code=401, detail='Invalid API key')
-    
-    logger.info('Getting citizens with world addresses as CSV for popup city: %s', popup_city_id)
-    applications_with_world_addresses = (
+
+    logger.info(
+        'Getting citizens with world addresses as CSV for popup city: %s', popup_city_id
+    )
+
+    # Use get_attendees_directory to get attendees from the popup city
+    # This function has important business logic and filters we need to respect
+
+    attendees, _ = application_crud.get_attendees_directory(
+        db=db,
+        popup_city_id=popup_city_id,
+        filters=filters,
+        skip=skip,
+        limit=limit,
+        user=None,
+    )
+    # Extract citizen IDs from attendees
+    citizen_ids = [attendee['citizen_id'] for attendee in attendees]
+
+    # Get all world addresses in a single query to avoid N+1 problem
+
+    world_addresses = (
         db.query(Citizen.world_address)
-        .join(models.Application, models.Application.citizen_id == Citizen.id)
         .filter(
-            models.Application.popup_city_id == popup_city_id,
+            Citizen.id.in_(citizen_ids),
             Citizen.world_address.isnot(None),
             Citizen.world_address != '',
         )
         .all()
     )
-    
+
+    # Extract just the world addresses from the query results
+    world_addresses = [world_address for (world_address,) in world_addresses]
+    logger.info('Final world addresses count: %s', len(world_addresses))
+
     output = io.StringIO()
     writer = csv.writer(output)
-    
+
     # Write header
     writer.writerow(['World Address'])
-    
+
     # Write data rows - only world addresses
-    for (world_address,) in applications_with_world_addresses:
+    for world_address in world_addresses:
         writer.writerow([world_address])
-    
+
     csv_content = output.getvalue()
-    
+
     return Response(
         content=csv_content,
         media_type='text/csv',
