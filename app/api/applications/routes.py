@@ -127,10 +127,10 @@ def get_world_addresses_csv(
     logger.info(
         'Getting citizens with world addresses as CSV for popup city: %s', popup_city_id
     )
-    
+
     # Use get_attendees_directory to get attendees from the popup city
     # This function has important business logic and filters we need to respect
- 
+
     attendees, _ = application_crud.get_attendees_directory(
         db=db,
         popup_city_id=popup_city_id,
@@ -141,9 +141,9 @@ def get_world_addresses_csv(
     )
     # Extract citizen IDs from attendees
     citizen_ids = [attendee['citizen_id'] for attendee in attendees]
-    
+
     # Get all world addresses in a single query to avoid N+1 problem
-   
+
     world_addresses = (
         db.query(Citizen.world_address)
         .filter(
@@ -153,8 +153,7 @@ def get_world_addresses_csv(
         )
         .all()
     )
-    
-    
+
     # Extract just the world addresses from the query results
     world_addresses = [world_address for (world_address,) in world_addresses]
     logger.info('Final world addresses count: %s', len(world_addresses))
