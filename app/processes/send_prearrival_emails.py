@@ -215,8 +215,7 @@ def main():
 
     with SessionLocal() as db:
         send_prearrival_emails(db)
-    logger.info('Pre-arrival email process completed. Sleeping for 30 seconds...')
-    time.sleep(30)
+    logger.info('Pre-arrival email process completed')
 
 
 if __name__ == '__main__':
