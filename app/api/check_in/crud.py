@@ -47,6 +47,9 @@ class CRUDCheckIn(
         db: Session,
         code: str,
     ) -> schemas.CheckInResponse:
+        if code.startswith('ECP25'):
+            code = code.replace('ECP25', 'EP25')
+
         attendee = attendee_crud.get_by_code(db, code)
         logger.info('Attendee with code %s found: %s', code, attendee is not None)
         if not attendee or not attendee.products:
