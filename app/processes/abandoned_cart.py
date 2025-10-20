@@ -13,6 +13,10 @@ from app.core.logger import logger
 from app.core.utils import current_time
 
 
+def _format_price(price):
+    return f'${price:,.2f}'.rstrip('0').rstrip('.')
+
+
 def get_to_exclude_emails(db: Session) -> List[str]:
     """Get list of emails that have received an abandoned cart email in the past week.
 
@@ -89,11 +93,11 @@ def process_abandoned_cart(db: Session, to_exclude_emails: List[str]):
                 amount = ps.product_price
 
             total += amount
-            lines.append(f'<strong>Price:</strong> {amount}<br>')
+            lines.append(f'<strong>Price:</strong> {_format_price(amount)}<br>')
 
         assert p.amount == total
         if len(p.products_snapshot) > 1:
-            lines.append(f'<strong>Total:</strong> {p.amount}')
+            lines.append(f'<strong>Total:</strong> {_format_price(p.amount)}')
 
         purchase_details = '<br>'.join(lines)
         logger.info('Purchase details: %s', purchase_details)
