@@ -1,7 +1,9 @@
 import base64
 import json
+import os
 from io import BytesIO
 
+import font_roboto
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
@@ -33,21 +35,26 @@ def generate_qr_code_base64(code: str, name: str) -> str:
     TEXT_MARGIN = 40  # Space between QR code and text
     LINE_SPACING = 10  # Space between wrapped text lines
 
-    # Load fonts early (needed for text wrapping calculation)
+    # Load fonts from the bundled Roboto font package
+    # This ensures consistent fonts across all environments (dev, server, etc.)
+    font_dir = os.path.join(os.path.dirname(font_roboto.__file__), 'files')
+
     try:
-        font_name = ImageFont.truetype(
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 36
-        )
-        font_large = ImageFont.truetype(
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 48
-        )
+        font_name = ImageFont.truetype(os.path.join(font_dir, 'Roboto-Bold.ttf'), 36)
+        font_large = ImageFont.truetype(os.path.join(font_dir, 'Roboto-Bold.ttf'), 48)
         font_small = ImageFont.truetype(
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 20
+            os.path.join(font_dir, 'Roboto-Regular.ttf'), 20
         )
-    except:
-        font_name = ImageFont.load_default()
-        font_large = ImageFont.load_default()
-        font_small = ImageFont.load_default()
+    except (OSError, IOError):
+        # Fallback to default font if something goes wrong
+        try:
+            font_name = ImageFont.load_default(size=36)
+            font_large = ImageFont.load_default(size=48)
+            font_small = ImageFont.load_default(size=20)
+        except TypeError:
+            font_name = ImageFont.load_default()
+            font_large = ImageFont.load_default()
+            font_small = ImageFont.load_default()
 
     # Create the JSON content for the QR code
     qr_content = json.dumps({'code': code})
