@@ -1,11 +1,7 @@
-import base64
-import json
 import time
 from datetime import timedelta
-from io import BytesIO
 from typing import List
 
-import qrcode
 from sqlalchemy.orm import Session
 
 from app.api.applications.models import Application
@@ -18,47 +14,20 @@ from app.core import models  # noqa: F401
 from app.core.config import Environment, settings
 from app.core.database import SessionLocal
 from app.core.logger import logger
+from app.core.qr_generator import generate_qr_code_base64
 from app.core.utils import current_time
 
 POPUP_CITY_SLUG = 'edge-patagonia'
 DAYS_BEFORE_START = 5
 
 
-def generate_qr_base64(data: str) -> str:
-    """
-    Generate a QR code from the given string and return
-    the image as a Base64-encoded PNG.
-
-    :param data: The string to encode in the QR code
-    :return: Base64 string of the PNG image
-    """
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(data)
-    qr.make(fit=True)
-
-    img = qr.make_image(fill_color='black', back_color='white')
-
-    buffered = BytesIO()
-    img.save(buffered, format='PNG')
-    img_bytes = buffered.getvalue()
-
-    base64_str = base64.b64encode(img_bytes).decode('utf-8')
-    return base64_str
-
-
 def generate_qr_attachment(check_in_code: str, attendee_name: str):
-    """Generate a QR code attachment for an attendee."""
+    """Generate a modern, styled QR code attachment for an attendee."""
     logger.info('Generating QR code for %s %s', check_in_code, attendee_name)
-    data = json.dumps({'code': check_in_code})
     return EmailAttachment(
         name=f'{attendee_name}.png',
         content_id='cid:qr.png',
-        content=generate_qr_base64(data),
+        content=generate_qr_code_base64(check_in_code, attendee_name),
         content_type='image/png',
     )
 
