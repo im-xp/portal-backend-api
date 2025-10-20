@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, relationship
@@ -69,6 +69,11 @@ class Attendee(Base):
             if attendee_product.product_id == product_id:
                 return attendee_product.quantity
         return 0
+
+    @property
+    def group_id(self) -> Optional[int]:
+        """Return the group_id from the related application."""
+        return self.application.group_id if self.application else None
 
 
 class AttendeeTicketApiKey(Base):
