@@ -96,7 +96,6 @@ def get_applications_for_prearrival(db: Session):
         .filter(
             PopUpCity.slug == POPUP_CITY_SLUG,
             Application.email.notin_(excluded_emails),
-            Application.email == 'francisco@muvinai.com',
         )
         .distinct()
         .all()
