@@ -247,6 +247,41 @@ def generate_qr_code_base64(code: str, name: str) -> str:
     return base64_str
 
 
+def generate_plain_qr_code_base64(code: str) -> str:
+    """
+    Generate a plain black and white QR code image and return it as a base64-encoded PNG.
+
+    Args:
+        code: The attendee code (e.g., "EP25NJAH")
+
+    Returns:
+        Base64-encoded PNG image string
+    """
+    # Create the JSON content for the QR code (same format as styled version)
+    qr_content = json.dumps({'code': code})
+
+    # Generate QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_content)
+    qr.make(fit=True)
+
+    # Create the plain QR code image (black and white only)
+    qr_img = qr.make_image(fill_color='black', back_color='white')
+
+    # Convert to base64
+    buffered = BytesIO()
+    qr_img.save(buffered, format='PNG')
+    img_bytes = buffered.getvalue()
+    base64_str = base64.b64encode(img_bytes).decode('utf-8')
+
+    return base64_str
+
+
 def _hex_to_rgb(hex_color):
     """Convert hex color to RGB tuple."""
     hex_color = hex_color.lstrip('#')

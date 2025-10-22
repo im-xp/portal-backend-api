@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.applications.models import Application
 from app.api.attendees.models import Attendee
+from app.api.check_in.models import CheckIn
 from app.api.email_logs.crud import email_log as email_log_crud
 from app.api.email_logs.models import EmailLog
 from app.api.email_logs.schemas import EmailAttachment, EmailEvent
@@ -14,19 +15,21 @@ from app.core import models  # noqa: F401
 from app.core.config import Environment, settings
 from app.core.database import SessionLocal
 from app.core.logger import logger
-from app.core.qr_generator import generate_qr_code_base64
+from app.core.qr_generator import generate_plain_qr_code_base64, generate_qr_code_base64
 from app.core.utils import current_time
 
 POPUP_CITY_SLUG = 'edge-patagonia'
-DAYS_BEFORE_START = 5
+DAYS_BEFORE_START_5DAY = 5
+DAYS_BEFORE_START_24H = 1
 
 
 def generate_qr_attachment(check_in_code: str, attendee_name: str):
     """Generate a modern, styled QR code attachment for an attendee."""
     logger.info('Generating QR code for %s %s', check_in_code, attendee_name)
+    filename = f'{attendee_name}.png'.replace(' ', '_')
     return EmailAttachment(
-        name=f'{attendee_name}.png',
-        content_id='cid:qr.png',
+        name=filename,
+        content_id=f'cid:{filename}',
         content=generate_qr_code_base64(check_in_code, attendee_name),
         content_type='image/png',
     )
@@ -40,6 +43,23 @@ def generate_qr_attachments(attendees: List[Attendee]):
             qr = generate_qr_attachment(attendee.check_in_code, attendee.name)
             attachments.append(qr)
     return attachments
+
+
+def generate_checkin_codes_html(attendees: List[Attendee]) -> str:
+    """Generate HTML formatted string with all attendees' check-in codes and products."""
+    html_parts = []
+    for attendee in attendees:
+        if attendee.category == 'main':
+            continue
+        if attendee.products:
+            html_parts.append(
+                f'<li><strong>{attendee.name}</strong>: {attendee.check_in_code}</li>'
+            )
+
+    if not html_parts:
+        return ''
+
+    return f"<p>Here are the access codes for your guests:</p><ul>{''.join(html_parts)}</ul><p>You'll find their QR codes attached.</p>"
 
 
 def get_earliest_start_date(application: Application):
@@ -61,11 +81,34 @@ def get_earliest_start_date(application: Application):
     return earliest_date
 
 
-def get_sent_prearrival_emails(db: Session) -> List[str]:
-    """Get list of application emails that have already received pre-arrival emails."""
+def has_any_attendee_checked_in(application: Application, db: Session) -> bool:
+    """
+    Check if any attendee in the application has already checked in via QR code.
+    Returns True if any attendee has qr_check_in=True, False otherwise.
+    """
+    attendee_ids = [attendee.id for attendee in application.attendees]
+
+    if not attendee_ids:
+        return False
+
+    # Check if any attendee has a check-in record with qr_check_in=True
+    checked_in_count = (
+        db.query(CheckIn)
+        .filter(
+            CheckIn.attendee_id.in_(attendee_ids),
+            CheckIn.qr_check_in == True,  # noqa: E712
+        )
+        .count()
+    )
+
+    return checked_in_count > 0
+
+
+def get_sent_prearrival_emails(db: Session, event: str) -> List[str]:
+    """Get list of application emails that have already received pre-arrival emails for a specific event."""
     logs = (
         db.query(EmailLog.receiver_email.distinct())
-        .filter(EmailLog.event == EmailEvent.PRE_ARRIVAL.value)
+        .filter(EmailLog.event == event)
         .all()
     )
     return [log[0] for log in logs]
@@ -81,11 +124,11 @@ def get_applications_for_prearrival(db: Session):
     - Earliest product start date is 5 days or less away
     - Haven't received pre-arrival email yet (deduplication handled by exclusion list)
     """
-    excluded_emails = get_sent_prearrival_emails(db)
+    excluded_emails = get_sent_prearrival_emails(db, EmailEvent.PRE_ARRIVAL.value)
     logger.info('Excluded application emails: %s', excluded_emails)
 
     today = current_time()
-    target_date = today + timedelta(days=DAYS_BEFORE_START)
+    target_date = today + timedelta(days=DAYS_BEFORE_START_5DAY)
 
     # Get all applications from Edge Patagonia with attendees that have products
     applications = (
@@ -132,18 +175,86 @@ def get_applications_for_prearrival(db: Session):
     return filtered_applications
 
 
+def get_applications_for_24h_prearrival(db: Session):
+    """
+    Get applications that need to receive 24-hour pre-arrival emails.
+
+    Criteria:
+    - From Edge Patagonia (popup_city slug == 'edge-patagonia')
+    - Has attendees with products
+    - Earliest product start date is 1 day or less away
+    - No attendees have checked in yet (qr_check_in=False)
+    - Haven't received 24-hour pre-arrival email yet (deduplication handled by exclusion list)
+    """
+    excluded_emails = get_sent_prearrival_emails(db, EmailEvent.PRE_ARRIVAL_24H.value)
+    logger.info('Excluded 24h application emails: %s', excluded_emails)
+
+    today = current_time()
+    target_date = today + timedelta(days=DAYS_BEFORE_START_24H)
+
+    # Get all applications from Edge Patagonia with attendees that have products
+    applications = (
+        db.query(Application)
+        .join(Application.popup_city)
+        .join(Application.attendees)
+        .join(Attendee.products)
+        .filter(
+            PopUpCity.slug == POPUP_CITY_SLUG,
+            Application.email.notin_(excluded_emails),
+        )
+        .distinct()
+        .all()
+    )
+
+    logger.info('Applications before filter (24h): %s', len(applications))
+
+    # Filter to only include applications where the earliest start date
+    # is 1 day or less away
+    filtered_applications = []
+    for application in applications:
+        earliest_date = get_earliest_start_date(application)
+        logger.info(
+            'Earliest date for application %s %s (24h check): %s',
+            application.id,
+            application.email,
+            earliest_date.strftime('%Y-%m-%d'),
+        )
+        if not earliest_date:
+            logger.error('No earliest date for application %s', application.id)
+            continue
+
+        # Check if earliest start date is at most 1 day away
+        if earliest_date <= target_date:
+            logger.info('Application %s is 1 day or less away', application.id)
+
+            # Check if any attendee has already checked in
+            if has_any_attendee_checked_in(application, db):
+                logger.info(
+                    'Skipping application %s %s - at least one attendee has already checked in',
+                    application.id,
+                    application.email,
+                )
+                continue
+
+            filtered_applications.append(application)
+
+    logger.info('Total 24h applications found: %s', len(filtered_applications))
+    logger.info('24h Emails: %s', [a.email for a in filtered_applications])
+    logger.info(
+        '24h Applications ids to process: %s', [a.id for a in filtered_applications]
+    )
+
+    return filtered_applications
+
+
 def process_application_for_prearrival(application: Application):
     """Send pre-arrival email to application with QR codes for all attendees."""
     logger.info('Processing application %s %s', application.id, application.email)
 
     attachments = generate_qr_attachments(application.attendees)
 
-    params = {
-        'first_name': application.first_name,
-    }
-
+    params = {'first_name': application.first_name}
     logger.info('Sending pre-arrival email to %s', application.email)
-
     email_log_crud.send_mail(
         receiver_mail=application.email,
         event=EmailEvent.PRE_ARRIVAL.value,
@@ -155,17 +266,80 @@ def process_application_for_prearrival(application: Application):
     )
 
 
-def send_prearrival_emails(db: Session):
-    """Main function to process and send pre-arrival emails."""
-    logger.info('Starting pre-arrival email process')
-    applications = get_applications_for_prearrival(db)
-    logger.info('Total applications to process: %s', len(applications))
+def process_application_for_24h_prearrival(application: Application):
+    """Send 24-hour pre-arrival email to application with check-in codes details and QR codes."""
+    logger.info('Processing 24h application %s %s', application.id, application.email)
 
-    for application in applications:
+    main_attendee = application.get_main_attendee()
+
+    if not main_attendee:
+        logger.warning('No attendees with products for application %s', application.id)
+        return
+
+    # Generate QR code attachments for all attendees
+    attachments = generate_qr_attachments(application.attendees)
+
+    # Add main attendee QR code as main.png (plain black and white version)
+    main_qr = EmailAttachment(
+        name='main.png',
+        content_id='cid:main.png',
+        content=generate_plain_qr_code_base64(main_attendee.check_in_code),
+        content_type='image/png',
+    )
+    attachments.append(main_qr)
+
+    # Generate HTML with all attendees' check-in codes
+    checkin_codes_html = generate_checkin_codes_html(application.attendees)
+
+    params = {
+        'first_name': application.first_name,
+        'checkin_code': main_attendee.check_in_code,
+        'checkin_codes_details': checkin_codes_html,
+    }
+
+    logger.info('Params: %s', params)
+    logger.info('Sending 24h pre-arrival email to %s', application.email)
+    email_log_crud.send_mail(
+        receiver_mail=application.email,
+        event=EmailEvent.PRE_ARRIVAL_24H.value,
+        popup_city=application.popup_city,
+        params=params,
+        entity_type='application',
+        entity_id=application.id,
+        attachments=attachments,
+    )
+
+
+def send_prearrival_emails(db: Session):
+    """Main function to process and send pre-arrival emails (both 5-day and 24-hour)."""
+    logger.info('Starting pre-arrival email process')
+
+    # Process 5-day pre-arrival emails
+    logger.info('Processing 5-day pre-arrival emails')
+    applications_5day = get_applications_for_prearrival(db)
+    logger.info('Total 5-day applications to process: %s', len(applications_5day))
+
+    for application in applications_5day:
         try:
             process_application_for_prearrival(application)
         except Exception as e:
-            logger.error('Error processing application %s: %s', application.id, str(e))
+            logger.error(
+                'Error processing 5-day application %s: %s', application.id, str(e)
+            )
+            continue
+
+    # Process 24-hour pre-arrival emails
+    logger.info('Processing 24-hour pre-arrival emails')
+    applications_24h = get_applications_for_24h_prearrival(db)
+    logger.info('Total 24-hour applications to process: %s', len(applications_24h))
+
+    for application in applications_24h:
+        try:
+            process_application_for_24h_prearrival(application)
+        except Exception as e:
+            logger.error(
+                'Error processing 24h application %s: %s', application.id, str(e)
+            )
             continue
 
     logger.info('Finished pre-arrival email process')
