@@ -150,6 +150,15 @@ def initiate_link_request(
             detail='Accounts are already linked',
         )
 
+    # Get initiator's email
+    initiator = db.query(Citizen).filter(Citizen.id == initiator_id).first()
+    if not initiator:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Initiator not found',
+        )
+    initiator_email = initiator.primary_email
+
     # Generate verification code
     code = generate_verification_code()
     expiration = datetime.utcnow() + timedelta(minutes=15)
@@ -170,8 +179,13 @@ def initiate_link_request(
     try:
         email_log.send_mail(
             receiver_mail=target_email,
-            event=EmailEvent.ACCOUNT_CLUSTER_VERIFICATION.value,
-            params={'verification_code': code},
+            event=EmailEvent.LINK_ACCOUNTS_VERIFICATION.value,
+            params={
+                'verification_code': code,
+                'email': target_email,
+                'initiator_email': initiator_email,
+                'contact_email': 'info@edgecity.live',
+            },
             entity_type='cluster_join_request',
             entity_id=request.id,
         )

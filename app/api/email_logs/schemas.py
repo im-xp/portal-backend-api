@@ -31,7 +31,7 @@ class EmailEvent(str, Enum):
     PRE_ARRIVAL = 'pre-arrival'
     PRE_ARRIVAL_24H = 'pre-arrival-24h'
     FEEDBACK_REQUEST = 'feedback-request'
-    ACCOUNT_CLUSTER_VERIFICATION = 'account-cluster-verification'
+    LINK_ACCOUNTS_VERIFICATION = 'link-accounts-verification'
 
 
 class EmailLogFilter(BaseModel):
