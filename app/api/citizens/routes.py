@@ -97,6 +97,7 @@ def login(
     spice: Optional[str] = None,
     code: Optional[int] = None,
     world_address: Optional[str] = None,
+    verified_upon_login: Optional[bool] = False,
     db: Session = Depends(get_db),
 ):
     try:
@@ -112,7 +113,7 @@ def login(
         )
 
     citizen = citizen_crud.login(
-        db=db, email=email, spice=spice, code=code, world_address=world_address
+        db=db, email=email, spice=spice, code=code, world_address=world_address, verified_upon_login=verified_upon_login
     )
     return citizen.get_authorization()
 

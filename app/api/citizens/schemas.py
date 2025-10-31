@@ -18,9 +18,9 @@ class Authenticate(BaseModel):
     use_code: Optional[bool] = False
     signature: Optional[str] = None
     world_address: Optional[str] = None
+    verified_upon_login: Optional[bool] = False
     world_redirect: bool = False
     source: Optional[str] = None
-
     model_config = ConfigDict(
         str_strip_whitespace=True,
         str_to_lower=True,

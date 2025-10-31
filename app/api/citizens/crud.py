@@ -296,6 +296,7 @@ class CRUDCitizen(
         email: str,
         spice: Optional[str] = None,
         world_address: Optional[str] = None,
+        verified_upon_login: Optional[bool] = False,
         code: Optional[int] = None,
     ) -> models.Citizen:
         if not spice and not code:
@@ -327,6 +328,8 @@ class CRUDCitizen(
                 )
         if world_address:
             citizen.world_address = world_address
+        if verified_upon_login:
+            citizen.verified_upon_login = verified_upon_login
         citizen.email_validated = True
         db.commit()
         db.refresh(citizen)
