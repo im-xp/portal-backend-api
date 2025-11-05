@@ -96,7 +96,7 @@ def login(
     spice: Optional[str] = None,
     code: Optional[int] = None,
     world_address: Optional[str] = None,
-    verified_upon_login: Optional[bool] = False,
+    verified_upon_login: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     try:

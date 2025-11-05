@@ -293,7 +293,7 @@ class CRUDCitizen(
         email: str,
         spice: Optional[str] = None,
         world_address: Optional[str] = None,
-        verified_upon_login: Optional[bool] = False,
+        verified_upon_login: Optional[str] = None,
         code: Optional[int] = None,
     ) -> models.Citizen:
         if not spice and not code:

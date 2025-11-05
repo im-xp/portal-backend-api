@@ -58,7 +58,7 @@ class Citizen(Base):
     gender = Column(String)
     eth_address = Column(String)
     world_address = Column(String)
-    verified_upon_login = Column(Boolean, default=False)
+    verified_upon_login = Column(String)
     referral = Column(String)
     picture_url = Column(String)
     red_flag = Column(Boolean, default=False)
