@@ -1,7 +1,7 @@
 from typing import Optional
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import validate_email
 from pydantic_core import PydanticCustomError
 from sqlalchemy.orm import Session
@@ -11,7 +11,6 @@ from app.api.authorized_third_party_apps.crud import (
 )
 from app.api.citizens import schemas
 from app.api.citizens.crud import citizen as citizen_crud
-
 from app.core.database import get_db
 from app.core.logger import logger
 from app.core.security import TokenData, get_current_user
@@ -113,7 +112,12 @@ def login(
         )
 
     citizen = citizen_crud.login(
-        db=db, email=email, spice=spice, code=code, world_address=world_address, verified_upon_login=verified_upon_login
+        db=db,
+        email=email,
+        spice=spice,
+        code=code,
+        world_address=world_address,
+        verified_upon_login=verified_upon_login,
     )
     return citizen.get_authorization()
 

@@ -149,10 +149,10 @@ def get_world_addresses_csv(
     for attendee in attendees:
         # Add main attendee's citizen_id (but not email)
         citizen_ids_set.add(attendee['citizen_id'])
-        
+
         # Add associated attendees' citizen_ids and emails if they exist
-        if attendee.get("associated_attendees"):
-            for associated_attendee in attendee["associated_attendees"]:
+        if attendee.get('associated_attendees'):
+            for associated_attendee in attendee['associated_attendees']:
                 if associated_attendee.get('citizen_id'):
                     citizen_ids_set.add(associated_attendee['citizen_id'])
                 if associated_attendee.get('email'):
@@ -162,17 +162,14 @@ def get_world_addresses_csv(
     citizen_ids = list(citizen_ids_set)
     emails = list(emails_set)
 
-    print(f"Unique citizen_ids: {len(citizen_ids)}")
-    print(f"Unique emails (from associated_attendees only): {len(emails)}")
+    print(f'Unique citizen_ids: {len(citizen_ids)}')
+    print(f'Unique emails (from associated_attendees only): {len(emails)}')
 
     # Query world addresses using both citizen_id and email
     world_addresses = (
         db.query(Citizen.world_address)
         .filter(
-            or_(
-                Citizen.id.in_(citizen_ids),
-                Citizen.primary_email.in_(emails)
-            ),
+            or_(Citizen.id.in_(citizen_ids), Citizen.primary_email.in_(emails)),
             Citizen.world_address.isnot(None),
             Citizen.world_address != '',
         )

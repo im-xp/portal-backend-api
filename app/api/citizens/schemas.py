@@ -9,7 +9,6 @@ from pydantic import (
     model_validator,
     validate_email,
 )
-from web3 import Web3
 
 
 class Authenticate(BaseModel):
@@ -159,6 +158,7 @@ class CitizenPopupData(BaseModel):
 
 
 class CitizenProfile(Citizen):
+    linked_emails: List[str]
     popups: List[CitizenPopupData]
     total_days: int
     referral_count: int
