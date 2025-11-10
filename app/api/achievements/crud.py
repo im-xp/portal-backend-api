@@ -268,24 +268,23 @@ class CRUDAchievement(
             return {'status': 'error', 'message': 'Telegram not configured'}
 
         # Get privacy from obj_data, default to "public"
-        privacy = obj_data.get("privacy") if obj_data else None
-        
+        privacy = obj_data.get('privacy') if obj_data else None
 
         # Build the message
         if privacy:
             # ✅ hides both sender and receiver
-            notification_text = "Someone sent gratitude (privately) ⭐️"
+            notification_text = 'Someone sent gratitude (privately) ⭐️'
         else:
             # ✅ public
             if not sender:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="sender is required for public messages"
+                    detail='sender is required for public messages',
                 )
             if not receiver:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="receiver is required for public messages"
+                    detail='receiver is required for public messages',
                 )
 
             sender_name = f'{sender.first_name} {sender.last_name}'
