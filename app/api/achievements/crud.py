@@ -84,12 +84,12 @@ class CRUDAchievement(
         else:
             logger.info('No citizen found or no world_address')
 
-        if obj_data.get('send_telegram_notification'):
-            self.send_telegram_notification(
-                receiver=receiver_citizen,
-                sender=sender_citizen,
-                message=obj_data.get('message', ''),
-            )
+        self.send_telegram_notification(
+            receiver=receiver_citizen,
+            sender=sender_citizen,
+            message=obj_data.get('message', ''),
+            obj_data=obj_data,
+        )
 
         return achievement
 
@@ -260,26 +260,46 @@ class CRUDAchievement(
         receiver: citizen_models.Citizen,
         sender: citizen_models.Citizen,
         message: str = '',
+        obj_data: Optional[dict] = None,
     ) -> dict:
         """Send a notification via Telegram"""
         if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
             logger.warning('Telegram bot token or chat ID not configured')
             return {'status': 'error', 'message': 'Telegram not configured'}
 
+        # Get privacy from obj_data, default to "public"
+        privacy = obj_data.get("privacy") if obj_data else None
+        
+
+        # Build the message
+        if privacy:
+            # ✅ hides both sender and receiver
+            notification_text = "Someone sent gratitude (privately) ⭐️"
+        else:
+            # ✅ public
+            if not sender:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="sender is required for public messages"
+                )
+            if not receiver:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="receiver is required for public messages"
+                )
+
+            sender_name = f'{sender.first_name} {sender.last_name}'
+            receiver_name = f'{receiver.first_name} {receiver.last_name}'
+            notification_text = f'{sender_name} sent gratitude to {receiver_name} ⭐️'
+
+        if message:
+            notification_text += f'\n\nMessage: {message}'
+
         logger.info(
             'Sending Telegram notification for achievement from %s to %s',
             sender.first_name if sender else 'Unknown',
             receiver.first_name if receiver else 'Unknown',
         )
-
-        # Build the notification message
-        sender_name = f'{sender.first_name} {sender.last_name}'
-        receiver_name = f'{receiver.first_name} {receiver.last_name}'
-
-        notification_text = f'{sender_name} sent gratitude to {receiver_name} ⭐️'
-
-        if message:
-            notification_text += f'\n\nMessage: {message}'
 
         # Send the message via Telegram Bot API
         url = f'https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage'

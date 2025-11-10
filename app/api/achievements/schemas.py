@@ -31,7 +31,7 @@ class AchievementCreate(BaseModel):
     achievement_type: str
     badge_type: Optional[str] = None
     message: Optional[str] = None
-    send_telegram_notification: Optional[bool] = False
+    privacy: Optional[bool] = False
 
 
 class Achievement(AchievementBase):
