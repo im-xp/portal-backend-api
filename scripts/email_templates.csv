@@ -1,4 +1,7 @@
 event,template,frequency
+auth-citizen-portal,auth-citizen-portal-ee25,
+auth-citizen-by-code,auth-citizen-by-code-ee25,
+auth-citizen-by-code-1,auth-citizen-by-code-ee25,
 application-received,application-received-ee25,
 application-approved,application-approved-ee25,
 application-approved-scholar,application-approved-scholar-ee25,

@@ -38,8 +38,7 @@ def format_money(value: float) -> str:
 def _format_money(value: float, decimals: int) -> str:
     # Simple money format (avoid locale quirks); allow custom decimals
     fmt = f'{{value:,.{decimals}f}}'
-    s = fmt.format(value=value)
-    return s.replace(',', 'X').replace('.', ',').replace('X', '.')
+    return fmt.format(value=value)
 
 
 def is_crypto_currency(code: str) -> bool:
@@ -149,9 +148,10 @@ def generate_invoice_pdf(
 
     # Two-column header (seller on left, invoice meta on right)
     left = [
-        Paragraph('Edge Institute Inc', styles['Body']),
-        Paragraph('Address: 1300 S 6th St, Austin, TX 78704', styles['Body']),
-        Paragraph('Email: syl@edgecity.live', styles['Body']),
+        Paragraph('IMXP Events LLC', styles['Body']),
+        Paragraph('411 Brazos St, Ste 103', styles['Body']),
+        Paragraph('Austin TX 78701', styles['Body']),
+        Paragraph('Email: theportal@icelandeclipse.com', styles['Body']),
     ]
     right = [
         Paragraph(f'Date: {format_date(payment.created_at)}', styles['Right']),
@@ -180,7 +180,10 @@ def generate_invoice_pdf(
     show_discount = discount is not None
     if show_discount:
         headers.append('Discount')
-    show_rate = payment.rate > 1
+    # Default rate to 1 and currency to USD for $0 orders
+    rate = payment.rate if payment.rate else 1
+    currency = payment.currency if payment.currency else 'USD'
+    show_rate = rate > 1
     if show_rate:
         headers.append('Rate')
     headers.append('Amount')
@@ -199,7 +202,7 @@ def generate_invoice_pdf(
         # If currency is not USD, show conversion via Rate column and compute amount in payment.currency
         if show_rate:
             # Convert unit to payment.currency: unit_in_currency = USD / rate
-            unit_in_currency = unit_price_usd / payment.rate
+            unit_in_currency = unit_price_usd / rate
             total_unit = unit_in_currency * qty
             total_after_discount = total_unit * (1 - (discount or 0) / 100)
             desc_text = f'{item.product_name} - {popup_name}'
@@ -207,9 +210,9 @@ def generate_invoice_pdf(
             row = [str(qty), desc_para, f'{format_money(unit_price_usd)} USD']
             if show_discount:
                 row.append(f'{discount:.0f}%')
-            row.append(f'1 {payment.currency} = {format_money(payment.rate)} USD')
+            row.append(f'1 {currency} = {format_money(rate)} USD')
             row.append(
-                f'{format_currency(total_after_discount, payment.currency)} {payment.currency}'
+                f'{format_currency(total_after_discount, currency)} {currency}'
             )
         else:
             # Currency is USD or 1:1; keep it simple
@@ -220,7 +223,7 @@ def generate_invoice_pdf(
             if show_discount:
                 row.append(f'{discount:.0f}%')
             row.append(
-                f'{format_currency(total_after_discount, payment.currency)} {payment.currency}'
+                f'{format_currency(total_after_discount, currency)} {currency}'
             )
         table_data.append(row)
 
@@ -331,9 +334,9 @@ def generate_invoice_pdf(
 
     # ---- Footer total ----
     # payment.amount is in USD; convert to display currency if needed
-    total = payment.amount / payment.rate if payment.rate > 1 else payment.amount
+    total = payment.amount / rate if rate > 1 else payment.amount
     total_par = Paragraph(
-        f'<b>Total: {format_currency(total, payment.currency)} {payment.currency}</b>',
+        f'<b>Total: {format_currency(total, currency)} {currency}</b>',
         styles['Bold'],
     )
     flow.append(total_par)

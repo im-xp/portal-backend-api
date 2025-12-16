@@ -170,22 +170,20 @@ class CRUDPayment(
             event = EmailEvent.EDIT_PASSES_CONFIRMED.value
 
         client_name = f'{first_name} {payment.application.last_name}'
-        attachments = None
-        if payment.amount > 0:
-            encoded_pdf = generate_invoice_pdf(
-                payment,
-                client_name,
-                payment.discount_value,
-                payment.application.popup_city.image_url,
+        encoded_pdf = generate_invoice_pdf(
+            payment,
+            client_name,
+            payment.discount_value,
+            payment.application.popup_city.image_url,
+        )
+        attachments = [
+            EmailAttachment(
+                name=f'invoice_{payment.id}.pdf',
+                content_id='invoice',
+                content=encoded_pdf,
+                content_type='application/pdf',
             )
-            attachments = [
-                EmailAttachment(
-                    name=f'invoice_{payment.id}.pdf',
-                    content_id='invoice',
-                    content=encoded_pdf,
-                    content_type='application/pdf',
-                )
-            ]
+        ]
 
         email_log.send_mail(
             receiver_mail=payment.application.citizen.primary_email,
