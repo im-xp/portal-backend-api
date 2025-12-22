@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, relationship, synonym
 
 from app.api.applications.schemas import ApplicationStatus
@@ -136,6 +137,9 @@ class Application(Base):
     updated_at = Column(DateTime, default=current_time, onupdate=current_time)
     created_by = Column(String)
     updated_by = Column(String)
+
+    # Custom form data for popup-specific questions (stored as JSONB)
+    custom_data = Column(JSONB, default=dict, server_default='{}')
 
     __mapper_args__ = {'exclude_properties': ['citizen', 'popup_city']}
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -91,6 +91,9 @@ class ApplicationBaseCommon(BaseModel):
 
     requested_discount: Optional[bool] = None
     status: Optional[ApplicationStatus] = None
+
+    # Custom form data for popup-specific questions
+    custom_data: Optional[Dict[str, Any]] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
