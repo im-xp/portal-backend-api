@@ -11,8 +11,16 @@ def send_mail(
     template: str,
     params: dict,
     attachments: list[EmailAttachment] = None,
+    from_address: str = None,
+    from_name: str = None,
+    reply_to: str = None,
 ):
-    logger.info('sending %s email to %s', template, receiver_mail)
+    # Use provided values or fall back to global settings
+    from_addr = from_address or settings.EMAIL_FROM_ADDRESS
+    from_nm = from_name or settings.EMAIL_FROM_NAME
+    reply = reply_to if reply_to is not None else settings.EMAIL_REPLY_TO
+
+    logger.info('sending %s email to %s from %s', template, receiver_mail, from_addr)
     url = 'https://api.postmarkapp.com/email/withTemplate'
     headers = {
         'Accept': 'application/json',
@@ -20,13 +28,13 @@ def send_mail(
         'X-Postmark-Server-Token': settings.POSTMARK_API_TOKEN,
     }
     data = {
-        'From': f'{settings.EMAIL_FROM_NAME} <{settings.EMAIL_FROM_ADDRESS}>',
+        'From': f'{from_nm} <{from_addr}>',
         'To': receiver_mail,
         'TemplateAlias': template,
         'TemplateModel': params,
     }
-    if settings.EMAIL_REPLY_TO:
-        data['ReplyTo'] = settings.EMAIL_REPLY_TO
+    if reply:
+        data['ReplyTo'] = reply
 
     if attachments:
         data['Attachments'] = [a.model_dump(by_alias=True) for a in attachments]

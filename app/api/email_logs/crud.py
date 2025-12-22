@@ -17,7 +17,7 @@ from app.api.email_logs.schemas import (
     EmailStatus,
 )
 from app.api.popup_city.models import PopUpCity
-from app.core.config import settings
+from app.core.config import get_popup_email_config, settings
 from app.core.database import SessionLocal
 from app.core.logger import logger
 from app.core.mail import send_mail
@@ -119,6 +119,10 @@ class CRUDEmailLog(
             )
 
         params['portal_url'] = settings.FRONTEND_URL
+
+        # Get popup-specific email config (FROM address, name, reply-to)
+        email_config = get_popup_email_config(popup_city.slug if popup_city else None)
+
         try:
             if send_at is not None:
                 logger.info('Scheduled email to be sent at %s', send_at)
@@ -130,6 +134,9 @@ class CRUDEmailLog(
                 template=template,
                 params=params,
                 attachments=attachments,
+                from_address=email_config['from_address'],
+                from_name=email_config['from_name'],
+                reply_to=email_config['reply_to'],
             )
             status = response_data['status']
             return response_data
@@ -174,20 +181,51 @@ class CRUDEmailLog(
             event = EmailEvent.AUTH_CITIZEN_APP.value
         else:
             event = EmailEvent.AUTH_CITIZEN_PORTAL.value
+
+        # Get popup-specific email config for login emails
+        email_config = get_popup_email_config(popup_slug)
+
+        db = SessionLocal()
+        email_status = EmailStatus.FAILED
+        error_message = None
         try:
-            return self.send_mail(
-                receiver_mail=receiver_mail,
-                event=event,
+            response_data = send_mail(
+                receiver_mail,
+                template=event,
                 params=params,
-                entity_type='citizen',
-                entity_id=citizen_id,
+                from_address=email_config['from_address'],
+                from_name=email_config['from_name'],
+                reply_to=email_config['reply_to'],
             )
+            email_status = response_data['status']
+            return response_data
         except requests.exceptions.HTTPError as e:
+            error_message = str(e)
             logger.error('Failed to send email %s: %s', receiver_mail, str(e))
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Failed to send email',
             )
+        finally:
+            try:
+                email_log_data = EmailLogCreate(
+                    receiver_email=receiver_mail,
+                    popup_city_id=None,
+                    template=event,
+                    event=event,
+                    params=params,
+                    status=email_status,
+                    send_at=None,
+                    error_message=error_message,
+                    entity_type='citizen',
+                    entity_id=citizen_id,
+                    attachments=None,
+                )
+                self.create(db, obj=email_log_data)
+            except Exception as db_error:
+                logger.error('Failed to log email: %s', str(db_error))
+            finally:
+                db.close()
 
     def send_scheduled_mails(self, db: Session):
         scheduled_emails = (

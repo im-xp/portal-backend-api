@@ -68,3 +68,31 @@ class Settings:
 
 
 settings = Settings()
+
+
+def get_popup_email_config(popup_slug: str | None) -> dict:
+    """
+    Get email config for a popup city, falling back to global defaults.
+
+    Looks for env vars like:
+      EMAIL_FROM_ADDRESS_RIPPLE_ON_THE_NILE
+      EMAIL_FROM_NAME_RIPPLE_ON_THE_NILE
+      EMAIL_REPLY_TO_RIPPLE_ON_THE_NILE
+
+    If popup-specific vars don't exist, falls back to global EMAIL_FROM_* vars.
+    """
+    if popup_slug:
+        slug_key = popup_slug.upper().replace('-', '_')
+        from_addr = os.getenv(f'EMAIL_FROM_ADDRESS_{slug_key}')
+        if from_addr:  # Only use popup-specific if FROM address exists
+            return {
+                'from_address': from_addr,
+                'from_name': os.getenv(f'EMAIL_FROM_NAME_{slug_key}') or settings.EMAIL_FROM_NAME,
+                'reply_to': os.getenv(f'EMAIL_REPLY_TO_{slug_key}') or settings.EMAIL_REPLY_TO,
+            }
+    # Fall back to global defaults
+    return {
+        'from_address': settings.EMAIL_FROM_ADDRESS,
+        'from_name': settings.EMAIL_FROM_NAME,
+        'reply_to': settings.EMAIL_REPLY_TO,
+    }
