@@ -96,3 +96,21 @@ def get_popup_email_config(popup_slug: str | None) -> dict:
         'from_name': settings.EMAIL_FROM_NAME,
         'reply_to': settings.EMAIL_REPLY_TO,
     }
+
+
+def get_popup_frontend_url(popup_slug: str | None) -> str:
+    """
+    Get frontend URL for a popup city, falling back to global default.
+
+    Looks for env vars like:
+      FRONTEND_URL_RIPPLE_ON_THE_NILE=https://ripple.egypt-eclipse.com
+
+    If popup-specific var doesn't exist, falls back to global FRONTEND_URL.
+    This allows email auth links to use popup-specific domains for better branding.
+    """
+    if popup_slug:
+        slug_key = popup_slug.upper().replace('-', '_')
+        frontend_url = os.getenv(f'FRONTEND_URL_{slug_key}')
+        if frontend_url:
+            return frontend_url
+    return settings.FRONTEND_URL

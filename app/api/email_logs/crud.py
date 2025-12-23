@@ -17,7 +17,7 @@ from app.api.email_logs.schemas import (
     EmailStatus,
 )
 from app.api.popup_city.models import PopUpCity
-from app.core.config import get_popup_email_config, settings
+from app.core.config import get_popup_email_config, get_popup_frontend_url, settings
 from app.core.database import SessionLocal
 from app.core.logger import logger
 from app.core.mail import send_mail
@@ -46,11 +46,9 @@ def _generate_authenticate_url(
     if world_redirect:
         auth_url = settings.WORLD_APP_URL + f'/auth?token_url={token_url}'
     else:
-        auth_url = urllib.parse.urljoin(
-            settings.FRONTEND_URL, f'/auth?token_url={token_url}'
-        )
-    if popup_slug:
-        auth_url += f'&popup={popup_slug}'
+        # Use popup-specific frontend URL if available (e.g., ripple.egypt-eclipse.com)
+        frontend_url = get_popup_frontend_url(popup_slug)
+        auth_url = urllib.parse.urljoin(frontend_url, f'/auth?token_url={token_url}')
     return auth_url
 
 
@@ -118,7 +116,8 @@ class CRUDEmailLog(
                 }
             )
 
-        params['portal_url'] = settings.FRONTEND_URL
+        # Use popup-specific frontend URL for portal link in emails
+        params['portal_url'] = get_popup_frontend_url(popup_city.slug if popup_city else None)
 
         # Get popup-specific email config (FROM address, name, reply-to)
         email_config = get_popup_email_config(popup_city.slug if popup_city else None)
