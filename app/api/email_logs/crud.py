@@ -187,10 +187,25 @@ class CRUDEmailLog(
         db = SessionLocal()
         email_status = EmailStatus.FAILED
         error_message = None
+        
+        # Look up popup-specific template
+        template = event
+        popup_city = None
+        popup_city_id = None
+        if popup_slug:
+            popup_city = db.query(PopUpCity).filter(PopUpCity.slug == popup_slug).first()
+            if popup_city:
+                popup_city_id = popup_city.id
+                try:
+                    template = popup_city.get_email_template(event)
+                    logger.info(f'Using popup-specific template: {template} for {popup_slug}')
+                except ValueError:
+                    logger.warning(f'No popup-specific template found for {event} in {popup_slug}, using default')
+        
         try:
             response_data = send_mail(
                 receiver_mail,
-                template=event,
+                template=template,
                 params=params,
                 from_address=email_config['from_address'],
                 from_name=email_config['from_name'],
@@ -209,8 +224,8 @@ class CRUDEmailLog(
             try:
                 email_log_data = EmailLogCreate(
                     receiver_email=receiver_mail,
-                    popup_city_id=None,
-                    template=event,
+                    popup_city_id=popup_city_id,
+                    template=template,
                     event=event,
                     params=params,
                     status=email_status,
