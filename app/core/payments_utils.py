@@ -82,6 +82,11 @@ def _calculate_amounts(
             attendees[attendee_id]['discountable'] = 0
             attendees[attendee_id]['non_discountable'] = 0
             attendees[attendee_id]['supporter'] = 0
+        elif product_model.category == 'donation':
+            # Donations use custom_price from request, not product.price
+            # Donations are non-discountable (coupons shouldn't reduce donations)
+            price = req_prod.custom_price if req_prod.custom_price else 0
+            attendees[attendee_id]['non_discountable'] += price * quantity
         elif product_model.category == 'supporter':
             attendees[attendee_id]['supporter'] += product_model.price * quantity
         elif product_model.category == 'lodging' or product_model.slug == 'portal-patron':
@@ -197,6 +202,29 @@ def _check_patreon_status(
     return already_patreon
 
 
+def _validate_donations(
+    requested_products: List[schemas.PaymentProduct],
+    valid_products: List[Product],
+):
+    """Validate donation products have valid custom_price values."""
+    product_categories = {p.id: p.category for p in valid_products}
+    
+    for req_prod in requested_products:
+        category = product_categories.get(req_prod.product_id)
+        
+        if category == 'donation':
+            if not req_prod.custom_price:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Donation products require a custom_price',
+                )
+            if req_prod.custom_price < 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail='Minimum donation amount is $1',
+                )
+
+
 def _apply_discounts(
     db: Session,
     obj: schemas.PaymentCreate,
@@ -280,6 +308,9 @@ def _prepare_payment_response(
 
     requested_product_ids = [p.product_id for p in obj.products]
     valid_products = _validate_products(db, requested_product_ids, application, user)
+
+    # Validate donation products have valid custom_price
+    _validate_donations(obj.products, valid_products)
 
     already_patreon = _check_patreon_status(
         application,

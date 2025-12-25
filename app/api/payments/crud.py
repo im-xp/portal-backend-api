@@ -94,15 +94,23 @@ class CRUDPayment(
 
             for product in obj.products:
                 product_id = product.product_id
+                product_data = products_data[product_id]
+                
+                # Use custom_price for donations, otherwise use product's base price
+                if product_data.category == 'donation' and product.custom_price:
+                    price = product.custom_price
+                else:
+                    price = product_data.price
+                
                 payment_product = models.PaymentProduct(
                     payment_id=db_payment.id,
                     product_id=product_id,
                     attendee_id=product.attendee_id,
                     quantity=product.quantity,
-                    product_name=products_data[product_id].name,
-                    product_description=products_data[product_id].description,
-                    product_price=products_data[product_id].price,
-                    product_category=products_data[product_id].category,
+                    product_name=product_data.name,
+                    product_description=product_data.description,
+                    product_price=price,
+                    product_category=product_data.category,
                 )
                 db.add(payment_product)
 
