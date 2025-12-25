@@ -42,7 +42,14 @@ def _calculate_amounts(
     db: Session,
     requested_products: List[schemas.PaymentProduct],
     already_patreon: bool,
-) -> Tuple[float, float, float]:
+) -> Tuple[float, float, float, float]:
+    """
+    Calculate amounts for different product categories.
+    Returns: (discountable_amount, non_discountable_amount, supporter_amount, patreon_amount)
+    
+    Discounts only apply to regular passes (e.g., Portal Entry Pass).
+    Non-discountable includes: lodging, portal-patron (premium pass)
+    """
     product_ids = list(set(rp.product_id for rp in requested_products))
     product_models = {
         p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
@@ -58,7 +65,12 @@ def _calculate_amounts(
         quantity = req_prod.quantity
         attendee_id = req_prod.attendee_id
         if attendee_id not in attendees:
-            attendees[attendee_id] = {'standard': 0, 'supporter': 0, 'patreon': 0}
+            attendees[attendee_id] = {
+                'discountable': 0,
+                'non_discountable': 0,
+                'supporter': 0,
+                'patreon': 0
+            }
 
         if attendees[attendee_id]['patreon'] > 0:
             continue
@@ -67,25 +79,33 @@ def _calculate_amounts(
             attendees[attendee_id]['patreon'] = (
                 product_model.price * quantity if not already_patreon else 0
             )
-            attendees[attendee_id]['standard'] = 0
+            attendees[attendee_id]['discountable'] = 0
+            attendees[attendee_id]['non_discountable'] = 0
             attendees[attendee_id]['supporter'] = 0
         elif product_model.category == 'supporter':
             attendees[attendee_id]['supporter'] += product_model.price * quantity
+        elif product_model.category == 'lodging' or product_model.slug == 'portal-patron':
+            # Lodging and Portal Patron are NOT eligible for discounts
+            attendees[attendee_id]['non_discountable'] += product_model.price * quantity
         else:
-            attendees[attendee_id]['standard'] += product_model.price * quantity
+            # Regular passes (like Portal Entry Pass) ARE eligible for discounts
+            attendees[attendee_id]['discountable'] += product_model.price * quantity
 
-    standard_amount = sum(a['standard'] for a in attendees.values())
+    discountable_amount = sum(a['discountable'] for a in attendees.values())
+    non_discountable_amount = sum(a['non_discountable'] for a in attendees.values())
     supporter_amount = sum(a['supporter'] for a in attendees.values())
     patreon_amount = sum(a['patreon'] for a in attendees.values())
-    logger.info('Standard amount: %s', standard_amount)
+    logger.info('Discountable amount: %s', discountable_amount)
+    logger.info('Non-discountable amount: %s', non_discountable_amount)
     logger.info('Supporter amount: %s', supporter_amount)
     logger.info('Patreon amount: %s', patreon_amount)
 
-    return standard_amount, supporter_amount, patreon_amount
+    return discountable_amount, non_discountable_amount, supporter_amount, patreon_amount
 
 
 def _calculate_price(
-    standard_amount: float,
+    discountable_amount: float,
+    non_discountable_amount: float,
     supporter_amount: float,
     patreon_amount: float,
     discount_value: float,
@@ -95,11 +115,14 @@ def _calculate_price(
     credit = _get_credit(application, discount_value) if edit_passes else 0
     logger.info('Credit: %s', credit)
 
-    if standard_amount > 0:
-        standard_amount = _get_discounted_price(standard_amount, discount_value)
-    standard_amount = standard_amount - credit
+    # Apply discount ONLY to discountable products (regular passes)
+    if discountable_amount > 0:
+        discountable_amount = _get_discounted_price(discountable_amount, discount_value)
+    
+    # Combine discountable (after discount) + non_discountable (full price)
+    total_standard = discountable_amount + non_discountable_amount - credit
 
-    return standard_amount + supporter_amount + patreon_amount
+    return total_standard + supporter_amount + patreon_amount
 
 
 def _validate_application(application: Application):
@@ -190,15 +213,16 @@ def _apply_discounts(
         discount_value=discount_assigned,
     )
 
-    standard_amount, supporter_amount, patreon_amount = _calculate_amounts(
+    discountable_amount, non_discountable_amount, supporter_amount, patreon_amount = _calculate_amounts(
         db,
         obj.products,
         already_patreon,
     )
 
-    response.original_amount = standard_amount + supporter_amount + patreon_amount
+    response.original_amount = discountable_amount + non_discountable_amount + supporter_amount + patreon_amount
     response.amount = _calculate_price(
-        standard_amount=standard_amount,
+        discountable_amount=discountable_amount,
+        non_discountable_amount=non_discountable_amount,
         supporter_amount=supporter_amount,
         patreon_amount=patreon_amount,
         discount_value=discount_assigned,
@@ -210,7 +234,8 @@ def _apply_discounts(
         response.group_id = application.group.id
         discount_value = application.group.discount_percentage
         discounted_amount = _calculate_price(
-            standard_amount=standard_amount,
+            discountable_amount=discountable_amount,
+            non_discountable_amount=non_discountable_amount,
             supporter_amount=supporter_amount,
             patreon_amount=patreon_amount,
             discount_value=discount_value,
@@ -228,7 +253,8 @@ def _apply_discounts(
             popup_city_id=application.popup_city_id,
         )
         discounted_amount = _calculate_price(
-            standard_amount=standard_amount,
+            discountable_amount=discountable_amount,
+            non_discountable_amount=non_discountable_amount,
             supporter_amount=supporter_amount,
             patreon_amount=patreon_amount,
             discount_value=coupon_code.discount_value,
