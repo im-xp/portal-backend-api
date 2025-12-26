@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.applications.schemas import Application, ApplicationWithAuth
 from app.api.groups import schemas
 from app.api.groups.crud import group as group_crud
+from app.api.products.schemas import Product as ProductSchema
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logger import logger
@@ -42,6 +43,17 @@ def get_group(
     db: Session = Depends(get_db),
 ):
     return group_crud.get_with_members(db=db, id=group_id, user=current_user)
+
+
+@router.get('/{group_id}/products', response_model=List[ProductSchema])
+def get_group_products(
+    group_id: int,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get products available for auto-assignment in this group"""
+    group = group_crud.get(db=db, id=group_id, user=current_user)
+    return group.products
 
 
 @router.get('/aux/{group_slug}', response_model=schemas.Group)

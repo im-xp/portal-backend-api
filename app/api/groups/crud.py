@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 from app.api.applications.crud import application as applications_crud
 from app.api.applications.models import Application as ApplicationModel
 from app.api.applications.schemas import ApplicationCreate, ApplicationStatus
+from app.api.attendees.models import AttendeeProduct
 from app.api.base_crud import CRUDBase
 from app.api.citizens.crud import citizen as citizens_crud
 from app.api.citizens.schemas import CitizenCreate
 from app.api.groups import models, schemas
+from app.api.products.models import Product
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN, TokenData
 from app.core.utils import current_time
@@ -233,6 +235,15 @@ class CRUDGroup(CRUDBase[models.Group, schemas.GroupBase, schemas.GroupBase]):
             group.members.append(citizen)
             logger.info('Citizen added to group: %s', citizen.id)
 
+        # Auto-assign product if specified
+        if member.product_id:
+            self._assign_product_to_member(
+                db=db,
+                application=application,
+                product_id=member.product_id,
+                group=group,
+            )
+
         db.commit()
         db.refresh(group)
         db.refresh(application)
@@ -326,6 +337,70 @@ class CRUDGroup(CRUDBase[models.Group, schemas.GroupBase, schemas.GroupBase]):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail='Member not found in group',
             )
+
+    def _assign_product_to_member(
+        self,
+        db: Session,
+        application: ApplicationModel,
+        product_id: int,
+        group: models.Group,
+    ) -> None:
+        """Assign a product to the main attendee of an application"""
+        # Validate product exists and belongs to the popup city
+        product = db.query(Product).filter(Product.id == product_id).first()
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f'Product {product_id} not found',
+            )
+
+        if product.popup_city_id != group.popup_city_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Product does not belong to this popup city',
+            )
+
+        # Get main attendee (first attendee on the application)
+        if not application.attendees:
+            logger.warning(
+                'No attendees found for application %s, cannot assign product',
+                application.id,
+            )
+            return
+
+        main_attendee = application.attendees[0]
+
+        # Check if product is already assigned
+        existing = (
+            db.query(AttendeeProduct)
+            .filter(
+                AttendeeProduct.attendee_id == main_attendee.id,
+                AttendeeProduct.product_id == product_id,
+            )
+            .first()
+        )
+
+        if existing:
+            logger.info(
+                'Product %s already assigned to attendee %s',
+                product_id,
+                main_attendee.id,
+            )
+            return
+
+        # Assign product to attendee
+        attendee_product = AttendeeProduct(
+            attendee_id=main_attendee.id,
+            product_id=product_id,
+            quantity=1,
+        )
+        db.add(attendee_product)
+        logger.info(
+            'Product %s assigned to attendee %s (application %s)',
+            product_id,
+            main_attendee.id,
+            application.id,
+        )
 
     def update_member(
         self,

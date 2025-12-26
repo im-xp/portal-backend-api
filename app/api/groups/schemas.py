@@ -26,6 +26,7 @@ class GroupMember(BaseModel, GroupMemberValidatorMixin):
     role: Optional[str] = None
     gender: Optional[str] = None
     local_resident: Optional[bool] = None
+    product_id: Optional[int] = None  # Auto-assign this product to the member
 
     @field_validator('first_name', 'last_name', 'email')
     @classmethod
