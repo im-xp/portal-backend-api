@@ -116,6 +116,7 @@ def _send_application_received_mail(application: models.Application):
         receiver_mail=application.email,
         event=EmailEvent.APPLICATION_RECEIVED.value,
         popup_city=application.popup_city,
+        params={'first_name': application.first_name},
         entity_type='application',
         entity_id=application.id,
     )
