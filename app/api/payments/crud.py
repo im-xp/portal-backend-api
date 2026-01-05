@@ -124,6 +124,7 @@ class CRUDPayment(
             if db_payment.coupon_code_id is not None:
                 coupon_code_crud.use_coupon_code(db, db_payment.coupon_code_id)
 
+            self._decrement_inventory(db, db_payment)
             self._add_products_to_attendees(db_payment)
             group = self._create_ambassador_group(db, db_payment)
             self._send_payment_confirmed_email(db_payment, group)
@@ -149,12 +150,58 @@ class CRUDPayment(
                     )
                 )
 
+    def _decrement_inventory(self, db: Session, payment: models.Payment) -> None:
+        """Decrement inventory for purchased products."""
+        if not payment.products_snapshot:
+            return
+
+        logger.info('Decrementing inventory for payment %s', payment.id)
+        product_ids = {ps.product_id for ps in payment.products_snapshot}
+        products = {
+            p.id: p
+            for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
+        }
+
+        for ps in payment.products_snapshot:
+            product = products.get(ps.product_id)
+            if product and product.max_inventory is not None:
+                product.current_sold = (product.current_sold or 0) + ps.quantity
+
     def _clear_application_products(self, db: Session, payment: models.Payment) -> None:
         logger.info('Removing products from attendees')
         application = payment.application
         attendees_ids = {a.id for a in application.attendees}
-        query = AttendeeProduct.attendee_id.in_(attendees_ids)
-        db.query(AttendeeProduct).filter(query).delete(synchronize_session=False)
+
+        # Return inventory before clearing products
+        existing_products = (
+            db.query(AttendeeProduct)
+            .filter(AttendeeProduct.attendee_id.in_(attendees_ids))
+            .all()
+        )
+
+        if existing_products:
+            product_ids = {ap.product_id for ap in existing_products}
+            products = {
+                p.id: p
+                for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
+            }
+
+            for ap in existing_products:
+                product = products.get(ap.product_id)
+                if product and product.max_inventory is not None:
+                    product.current_sold = max(
+                        0, (product.current_sold or 0) - ap.quantity
+                    )
+                    logger.info(
+                        'Returned %s of product %s to inventory',
+                        ap.quantity,
+                        product.id,
+                    )
+
+        # Delete the products
+        db.query(AttendeeProduct).filter(
+            AttendeeProduct.attendee_id.in_(attendees_ids)
+        ).delete(synchronize_session=False)
 
     def _send_payment_confirmed_email(
         self, payment: models.Payment, group: Optional[models.Group]
@@ -242,6 +289,7 @@ class CRUDPayment(
         if payment.coupon_code_id is not None:
             coupon_code_crud.use_coupon_code(db, payment.coupon_code_id)
 
+        self._decrement_inventory(db, payment)
         self._add_products_to_attendees(payment)
         group = self._create_ambassador_group(db, payment)
         self._send_payment_confirmed_email(payment, group)

@@ -225,6 +225,32 @@ def _validate_donations(
                 )
 
 
+def _validate_inventory(
+    requested_products: List[schemas.PaymentProduct],
+    valid_products: List[Product],
+):
+    """Check inventory availability for requested products."""
+    product_map = {p.id: p for p in valid_products}
+
+    # Aggregate quantities per product
+    requested_qty = {}
+    for req in requested_products:
+        requested_qty[req.product_id] = (
+            requested_qty.get(req.product_id, 0) + req.quantity
+        )
+
+    for product_id, qty in requested_qty.items():
+        product = product_map[product_id]
+        if product.max_inventory is not None:
+            available = product.max_inventory - (product.current_sold or 0)
+            if qty > available:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f'Not enough inventory for {product.name}. '
+                    f'Available: {available}',
+                )
+
+
 def _apply_discounts(
     db: Session,
     obj: schemas.PaymentCreate,
@@ -311,6 +337,9 @@ def _prepare_payment_response(
 
     # Validate donation products have valid custom_price
     _validate_donations(obj.products, valid_products)
+
+    # Check inventory availability
+    _validate_inventory(obj.products, valid_products)
 
     already_patreon = _check_patreon_status(
         application,

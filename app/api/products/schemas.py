@@ -17,6 +17,8 @@ class ProductBase(BaseModel):
     end_date: Optional[datetime] = None
     is_active: bool = True
     exclusive: bool = False
+    max_inventory: Optional[int] = None  # NULL = unlimited
+    current_sold: int = 0
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

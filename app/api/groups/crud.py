@@ -360,6 +360,15 @@ class CRUDGroup(CRUDBase[models.Group, schemas.GroupBase, schemas.GroupBase]):
                 detail='Product does not belong to this popup city',
             )
 
+        # Check inventory availability
+        if product.max_inventory is not None:
+            available = product.max_inventory - (product.current_sold or 0)
+            if available < 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Product {product.name} is sold out',
+                )
+
         # Get main attendee (first attendee on the application)
         if not application.attendees:
             logger.warning(
@@ -395,6 +404,11 @@ class CRUDGroup(CRUDBase[models.Group, schemas.GroupBase, schemas.GroupBase]):
             quantity=1,
         )
         db.add(attendee_product)
+
+        # Decrement inventory
+        if product.max_inventory is not None:
+            product.current_sold = (product.current_sold or 0) + 1
+
         logger.info(
             'Product %s assigned to attendee %s (application %s)',
             product_id,

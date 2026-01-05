@@ -33,6 +33,8 @@ class Product(Base):
     end_date = Column(DateTime)
     is_active = Column(Boolean, nullable=False, default=True)
     exclusive = Column(Boolean, nullable=False, default=False)
+    max_inventory = Column(Integer, nullable=True)  # NULL = unlimited
+    current_sold = Column(Integer, default=0)
 
     attendees: Mapped[List['Attendee']] = relationship(
         'Attendee',
