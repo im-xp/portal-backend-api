@@ -373,7 +373,12 @@ class CRUDApplication(
             (models.Application.brings_kids.is_(False), 1),
         ).label('brings_kids_order')
 
-        # Query applications with main attendees that have products
+        # Check if this popup requires products for directory visibility
+        # Ripple on the Nile (slug: ripple-on-the-nile) doesn't sell tickets through platform
+        popup = db.query(PopUpCity).filter(PopUpCity.id == popup_city_id).first()
+        require_products = popup.slug != 'ripple-on-the-nile' if popup else True
+
+        # Query applications with main attendees
         base_query = (
             db.query(
                 models.Application,
@@ -388,10 +393,7 @@ class CRUDApplication(
             .options(selectinload(models.Application.attendees))
             .filter(
                 models.Application.popup_city_id == popup_city_id,
-                # Check if the attendee has any products using EXISTS
-                exists()
-                .where(AttendeeProduct.attendee_id == Attendee.id)
-                .correlate(Attendee),
+                models.Application.status == 'accepted',
             )
             .order_by(
                 info_not_shared_order,
@@ -400,6 +402,14 @@ class CRUDApplication(
                 models.Application.id,
             )
         )
+
+        # For most cities, only show attendees who have purchased products
+        if require_products:
+            base_query = base_query.filter(
+                exists()
+                .where(AttendeeProduct.attendee_id == Attendee.id)
+                .correlate(Attendee),
+            )
 
         if filters:
             ins = models.Application._info_not_shared
@@ -524,6 +534,7 @@ class CRUDApplication(
                 'check_in': check_in,
                 'check_out': check_out,
                 'picture_url': picture_url,
+                'custom_data': application.custom_data,
             }
 
             if application.info_not_shared:
