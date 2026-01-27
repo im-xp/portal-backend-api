@@ -66,6 +66,8 @@ class Settings:
     TELEGRAM_CHAT_ID: str = os.getenv('TELEGRAM_CHAT_ID')
     TELEGRAM_MESSAGE_THREAD_ID: str = os.getenv('TELEGRAM_MESSAGE_THREAD_ID')
 
+    MAX_ALLOWED_INSTALLMENTS: int = int(os.getenv('MAX_ALLOWED_INSTALLMENTS', '6'))
+
 
 settings = Settings()
 
