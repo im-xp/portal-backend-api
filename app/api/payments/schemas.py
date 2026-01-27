@@ -28,7 +28,9 @@ class PaymentProduct(BaseModel):
     product_id: int
     attendee_id: int
     quantity: int
-    custom_price: Optional[float] = None  # For donation products - user-specified amount
+    custom_price: Optional[float] = (
+        None  # For donation products - user-specified amount
+    )
 
 
 class PaymentCreate(BaseModel):

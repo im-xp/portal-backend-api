@@ -89,8 +89,10 @@ def get_popup_email_config(popup_slug: str | None) -> dict:
         if from_addr:  # Only use popup-specific if FROM address exists
             return {
                 'from_address': from_addr,
-                'from_name': os.getenv(f'EMAIL_FROM_NAME_{slug_key}') or settings.EMAIL_FROM_NAME,
-                'reply_to': os.getenv(f'EMAIL_REPLY_TO_{slug_key}') or settings.EMAIL_REPLY_TO,
+                'from_name': os.getenv(f'EMAIL_FROM_NAME_{slug_key}')
+                or settings.EMAIL_FROM_NAME,
+                'reply_to': os.getenv(f'EMAIL_REPLY_TO_{slug_key}')
+                or settings.EMAIL_REPLY_TO,
             }
     # Fall back to global defaults
     return {

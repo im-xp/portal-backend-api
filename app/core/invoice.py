@@ -211,9 +211,7 @@ def generate_invoice_pdf(
             if show_discount:
                 row.append(f'{discount:.0f}%')
             row.append(f'1 {currency} = {format_money(rate)} USD')
-            row.append(
-                f'{format_currency(total_after_discount, currency)} {currency}'
-            )
+            row.append(f'{format_currency(total_after_discount, currency)} {currency}')
         else:
             # Currency is USD or 1:1; keep it simple
             total_unit = unit_price_usd * qty
@@ -222,9 +220,7 @@ def generate_invoice_pdf(
             row = [str(qty), desc_para, f'{format_money(unit_price_usd)} USD']
             if show_discount:
                 row.append(f'{discount:.0f}%')
-            row.append(
-                f'{format_currency(total_after_discount, currency)} {currency}'
-            )
+            row.append(f'{format_currency(total_after_discount, currency)} {currency}')
         table_data.append(row)
 
     # ---- Column widths: auto for non-description, description fills remaining ----

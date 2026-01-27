@@ -95,13 +95,13 @@ class CRUDPayment(
             for product in obj.products:
                 product_id = product.product_id
                 product_data = products_data[product_id]
-                
+
                 # Use custom_price for donations, otherwise use product's base price
                 if product_data.category == 'donation' and product.custom_price:
                     price = product.custom_price
                 else:
                     price = product_data.price
-                
+
                 payment_product = models.PaymentProduct(
                     payment_id=db_payment.id,
                     product_id=product_id,
@@ -158,8 +158,7 @@ class CRUDPayment(
         logger.info('Decrementing inventory for payment %s', payment.id)
         product_ids = {ps.product_id for ps in payment.products_snapshot}
         products = {
-            p.id: p
-            for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
+            p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
         }
 
         for ps in payment.products_snapshot:

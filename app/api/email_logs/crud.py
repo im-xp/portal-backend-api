@@ -117,7 +117,9 @@ class CRUDEmailLog(
             )
 
         # Use popup-specific frontend URL for portal link in emails
-        params['portal_url'] = get_popup_frontend_url(popup_city.slug if popup_city else None)
+        params['portal_url'] = get_popup_frontend_url(
+            popup_city.slug if popup_city else None
+        )
 
         # Get popup-specific email config (FROM address, name, reply-to)
         email_config = get_popup_email_config(popup_city.slug if popup_city else None)
@@ -187,21 +189,27 @@ class CRUDEmailLog(
         db = SessionLocal()
         email_status = EmailStatus.FAILED
         error_message = None
-        
+
         # Look up popup-specific template
         template = event
         popup_city = None
         popup_city_id = None
         if popup_slug:
-            popup_city = db.query(PopUpCity).filter(PopUpCity.slug == popup_slug).first()
+            popup_city = (
+                db.query(PopUpCity).filter(PopUpCity.slug == popup_slug).first()
+            )
             if popup_city:
                 popup_city_id = popup_city.id
                 try:
                     template = popup_city.get_email_template(event)
-                    logger.info(f'Using popup-specific template: {template} for {popup_slug}')
+                    logger.info(
+                        f'Using popup-specific template: {template} for {popup_slug}'
+                    )
                 except ValueError:
-                    logger.warning(f'No popup-specific template found for {event} in {popup_slug}, using default')
-        
+                    logger.warning(
+                        f'No popup-specific template found for {event} in {popup_slug}, using default'
+                    )
+
         try:
             response_data = send_mail(
                 receiver_mail,

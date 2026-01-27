@@ -18,7 +18,7 @@ DB_NAME = os.environ.get('DB_NAME', 'edgeos_db')
 DB_USER = os.environ.get('DB_USERNAME', 'myuser')
 DB_PASS = os.environ.get('DB_PASSWORD', 'secret')
 
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = f'postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 
 
 def parse_bool(val):
@@ -49,50 +49,50 @@ def parse_datetime(val):
 
 
 def main():
-    print(f"Connecting to: {DB_HOST}:{DB_PORT}/{DB_NAME}")
-    
+    print(f'Connecting to: {DB_HOST}:{DB_PORT}/{DB_NAME}')
+
     engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
         # Get popup city ID
-        result = session.execute(
-            text("SELECT id, name FROM popups LIMIT 1")
-        ).fetchone()
-        
+        result = session.execute(text('SELECT id, name FROM popups LIMIT 1')).fetchone()
+
         if not result:
-            print("ERROR: No popup city found. Create one first.")
+            print('ERROR: No popup city found. Create one first.')
             return
-        
+
         popup_city_id, popup_name = result
-        print(f"Using popup city: {popup_name} (ID: {popup_city_id})")
-        
+        print(f'Using popup city: {popup_name} (ID: {popup_city_id})')
+
         # Read products CSV
         csv_path = os.path.join(os.path.dirname(__file__), 'products.csv')
         with open(csv_path, newline='') as f:
             reader = csv.DictReader(f)
             products = list(reader)
-        
-        print(f"Found {len(products)} products to insert")
-        
+
+        print(f'Found {len(products)} products to insert')
+
         inserted = 0
         skipped = 0
-        
+
         for row in products:
             slug = row.get('slug')
-            
+
             # Check if exists
             exists = session.execute(
-                text("SELECT id FROM products WHERE slug = :slug AND popup_city_id = :popup_id"),
-                {"slug": slug, "popup_id": popup_city_id}
+                text(
+                    'SELECT id FROM products WHERE slug = :slug AND popup_city_id = :popup_id'
+                ),
+                {'slug': slug, 'popup_id': popup_city_id},
             ).fetchone()
-            
+
             if exists:
-                print(f"  Skipping (exists): {slug}")
+                print(f'  Skipping (exists): {slug}')
                 skipped += 1
                 continue
-            
+
             # Insert
             session.execute(
                 text("""
@@ -109,28 +109,28 @@ def main():
                 )
                 """),
                 {
-                    "name": row.get('name'),
-                    "slug": slug,
-                    "price": parse_float(row.get('price')),
-                    "compare_price": parse_float(row.get('compare_price')),
-                    "popup_city_id": popup_city_id,
-                    "description": row.get('description') or None,
-                    "category": row.get('category') or None,
-                    "attendee_category": row.get('attendee_category') or None,
-                    "start_date": parse_datetime(row.get('start_date')),
-                    "end_date": parse_datetime(row.get('end_date')),
-                    "is_active": parse_bool(row.get('is_active')),
-                    "exclusive": parse_bool(row.get('exclusive')),
-                }
+                    'name': row.get('name'),
+                    'slug': slug,
+                    'price': parse_float(row.get('price')),
+                    'compare_price': parse_float(row.get('compare_price')),
+                    'popup_city_id': popup_city_id,
+                    'description': row.get('description') or None,
+                    'category': row.get('category') or None,
+                    'attendee_category': row.get('attendee_category') or None,
+                    'start_date': parse_datetime(row.get('start_date')),
+                    'end_date': parse_datetime(row.get('end_date')),
+                    'is_active': parse_bool(row.get('is_active')),
+                    'exclusive': parse_bool(row.get('exclusive')),
+                },
             )
-            print(f"  ✓ Inserted: {row.get('name')} ({slug})")
+            print(f'  ✓ Inserted: {row.get("name")} ({slug})')
             inserted += 1
-        
+
         session.commit()
-        print(f"\nDone! Inserted: {inserted}, Skipped: {skipped}")
-        
+        print(f'\nDone! Inserted: {inserted}, Skipped: {skipped}')
+
     except Exception as e:
-        print(f"ERROR: {e}")
+        print(f'ERROR: {e}')
         session.rollback()
         raise
     finally:
@@ -139,4 +139,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

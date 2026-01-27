@@ -48,7 +48,7 @@ def _calculate_amounts(
     """
     Calculate amounts for different product categories.
     Returns: (discountable_amount, non_discountable_amount, supporter_amount, patreon_amount)
-    
+
     Discounts only apply to regular passes (e.g., Portal Entry Pass).
     Non-discountable includes: lodging, portal-patron (premium pass)
     """
@@ -71,7 +71,7 @@ def _calculate_amounts(
                 'discountable': 0,
                 'non_discountable': 0,
                 'supporter': 0,
-                'patreon': 0
+                'patreon': 0,
             }
 
         if attendees[attendee_id]['patreon'] > 0:
@@ -91,7 +91,9 @@ def _calculate_amounts(
             attendees[attendee_id]['non_discountable'] += price * quantity
         elif product_model.category == 'supporter':
             attendees[attendee_id]['supporter'] += product_model.price * quantity
-        elif product_model.category == 'lodging' or product_model.slug == 'portal-patron':
+        elif (
+            product_model.category == 'lodging' or product_model.slug == 'portal-patron'
+        ):
             # Lodging and Portal Patron are NOT eligible for discounts
             attendees[attendee_id]['non_discountable'] += product_model.price * quantity
         else:
@@ -107,7 +109,12 @@ def _calculate_amounts(
     logger.info('Supporter amount: %s', supporter_amount)
     logger.info('Patreon amount: %s', patreon_amount)
 
-    return discountable_amount, non_discountable_amount, supporter_amount, patreon_amount
+    return (
+        discountable_amount,
+        non_discountable_amount,
+        supporter_amount,
+        patreon_amount,
+    )
 
 
 def _calculate_price(
@@ -125,7 +132,7 @@ def _calculate_price(
     # Apply discount ONLY to discountable products (regular passes)
     if discountable_amount > 0:
         discountable_amount = _get_discounted_price(discountable_amount, discount_value)
-    
+
     # Combine discountable (after discount) + non_discountable (full price)
     total_standard = discountable_amount + non_discountable_amount - credit
 
@@ -210,10 +217,10 @@ def _validate_donations(
 ):
     """Validate donation products have valid custom_price values."""
     product_categories = {p.id: p.category for p in valid_products}
-    
+
     for req_prod in requested_products:
         category = product_categories.get(req_prod.product_id)
-        
+
         if category == 'donation':
             if not req_prod.custom_price:
                 raise HTTPException(
@@ -269,13 +276,20 @@ def _apply_discounts(
         discount_value=discount_assigned,
     )
 
-    discountable_amount, non_discountable_amount, supporter_amount, patreon_amount = _calculate_amounts(
-        db,
-        obj.products,
-        already_patreon,
+    discountable_amount, non_discountable_amount, supporter_amount, patreon_amount = (
+        _calculate_amounts(
+            db,
+            obj.products,
+            already_patreon,
+        )
     )
 
-    response.original_amount = discountable_amount + non_discountable_amount + supporter_amount + patreon_amount
+    response.original_amount = (
+        discountable_amount
+        + non_discountable_amount
+        + supporter_amount
+        + patreon_amount
+    )
     response.amount = _calculate_price(
         discountable_amount=discountable_amount,
         non_discountable_amount=non_discountable_amount,
@@ -401,7 +415,9 @@ def create_payment(
     valid_products_names = {p.id: p.name for p in valid_products}
 
     start_date = application.popup_city.start_date
-    max_installments = _calculate_max_installments(start_date) if start_date is not None else None
+    max_installments = (
+        _calculate_max_installments(start_date) if start_date is not None else None
+    )
 
     reference = {
         'email': application.email,
@@ -417,7 +433,12 @@ def create_payment(
         ],
     }
 
-    logger.info('Creating payment request. Email: %s, Amount: %s, Max Installments: %s', user.email, response.amount, max_installments)
+    logger.info(
+        'Creating payment request. Email: %s, Amount: %s, Max Installments: %s',
+        user.email,
+        response.amount,
+        max_installments,
+    )
     payment_request = simplefi.create_payment(
         response.amount,
         reference=reference,

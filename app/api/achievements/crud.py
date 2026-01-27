@@ -284,7 +284,7 @@ class CRUDAchievement(
                 sender_name = ' '.join(name_parts)
             else:
                 sender_name = 'Anonymous'
-            
+
             if receiver and (receiver.first_name or receiver.last_name):
                 name_parts = []
                 if receiver.first_name:
@@ -294,7 +294,7 @@ class CRUDAchievement(
                 receiver_name = ' '.join(name_parts)
             else:
                 receiver_name = 'Anonymous'
-            
+
             notification_text = f'{sender_name} sent gratitude to {receiver_name} ⭐️'
 
         logger.info(
