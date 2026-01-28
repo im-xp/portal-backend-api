@@ -150,6 +150,28 @@ class CRUDPayment(
                     )
                 )
 
+    def _remove_products_from_attendees(
+        self, db: Session, payment: models.Payment
+    ) -> None:
+        """Remove products from attendees that were added by this payment."""
+        if not payment.products_snapshot:
+            return
+
+        logger.info('Removing products from attendees for payment %s', payment.id)
+        for product_snapshot in payment.products_snapshot:
+            # Find and remove the AttendeeProduct record matching this payment's snapshot
+            attendee_product = (
+                db.query(AttendeeProduct)
+                .filter(
+                    AttendeeProduct.attendee_id == product_snapshot.attendee.id,
+                    AttendeeProduct.product_id == product_snapshot.product_id,
+                    AttendeeProduct.quantity == product_snapshot.quantity,
+                )
+                .first()
+            )
+            if attendee_product:
+                db.delete(attendee_product)
+
     def _decrement_inventory(self, db: Session, payment: models.Payment) -> None:
         """Decrement inventory for purchased products."""
         if not payment.products_snapshot:
@@ -165,6 +187,22 @@ class CRUDPayment(
             product = products.get(ps.product_id)
             if product and product.max_inventory is not None:
                 product.current_sold = (product.current_sold or 0) + ps.quantity
+
+    def _increment_inventory(self, db: Session, payment: models.Payment) -> None:
+        """Increment inventory for products (reverse of decrement)."""
+        if not payment.products_snapshot:
+            return
+
+        logger.info('Incrementing inventory for payment %s', payment.id)
+        product_ids = {ps.product_id for ps in payment.products_snapshot}
+        products = {
+            p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
+        }
+
+        for ps in payment.products_snapshot:
+            product = products.get(ps.product_id)
+            if product and product.max_inventory is not None:
+                product.current_sold = max(0, (product.current_sold or 0) - ps.quantity)
 
     def _clear_application_products(self, db: Session, payment: models.Payment) -> None:
         logger.info('Removing products from attendees')
