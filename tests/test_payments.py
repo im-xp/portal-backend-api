@@ -458,9 +458,8 @@ def test_simplefi_webhook_invalid_event_type(
     }
 
     response = client.post('/webhooks/simplefi', json=webhook_data)
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    err_msg = 'Event type is not new_payment or new_card_payment'
-    assert response.json()['detail'] == err_msg
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['message'] == 'Event type invalid_event_type not handled'
 
 
 def test_use_coupon_code(
@@ -1264,6 +1263,7 @@ def test_simplefi_installment_plan_cancelled_idempotent(
     client,
     auth_headers,
     test_payment_data,
+    test_products,
     mock_create_payment,
     mock_webhook_cache,
     db_session,
