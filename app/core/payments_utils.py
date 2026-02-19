@@ -80,7 +80,10 @@ def _classify_products(
         quantity = req_prod.quantity
 
         # Patreon replaces all other products for the attendee
-        if req_prod.attendee_id in patreon_attendees and product_model.category != 'patreon':
+        if (
+            req_prod.attendee_id in patreon_attendees
+            and product_model.category != 'patreon'
+        ):
             unit_prices.append(0.0)
             continue
 
@@ -363,9 +366,13 @@ def _prepare_payment_response(
         obj.edit_passes or False,
     )
 
-    unit_prices, discountable_amount, non_discountable_amount, supporter_amount, patreon_amount = (
-        _classify_products(obj.products, valid_products, already_patreon)
-    )
+    (
+        unit_prices,
+        discountable_amount,
+        non_discountable_amount,
+        supporter_amount,
+        patreon_amount,
+    ) = _classify_products(obj.products, valid_products, already_patreon)
 
     response = _apply_discounts(
         db,
@@ -465,5 +472,89 @@ def create_payment(
     # Set installment plan fields
     if max_installments is not None and max_installments > 1:
         response.is_installment_plan = True
+
+    return response
+
+
+def create_application_fee_payment(
+    db: Session,
+    application_id: int,
+    user: TokenData,
+) -> PaymentPreview:
+    from app.api.payments.models import Payment as PaymentModel
+
+    application = application_crud.get(db, application_id, user)
+
+    if application.status != ApplicationStatus.DRAFT.value:
+        raise HTTPException(
+            status_code=400, detail='Application must be in draft status'
+        )
+
+    popup_city = application.popup_city
+    fee_amount = popup_city.application_fee
+    if not fee_amount or fee_amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail='This popup city does not require an application fee',
+        )
+
+    # Check for existing approved fee payment
+    existing_approved = (
+        db.query(PaymentModel)
+        .filter(
+            PaymentModel.application_id == application.id,
+            PaymentModel.is_application_fee.is_(True),
+            PaymentModel.status == 'approved',
+        )
+        .first()
+    )
+    if existing_approved:
+        raise HTTPException(
+            status_code=400, detail='Application fee has already been paid'
+        )
+
+    # Cancel any existing pending fee payments
+    pending_fees = (
+        db.query(PaymentModel)
+        .filter(
+            PaymentModel.application_id == application.id,
+            PaymentModel.is_application_fee.is_(True),
+            PaymentModel.status == 'pending',
+        )
+        .all()
+    )
+    for pf in pending_fees:
+        pf.status = 'cancelled'
+
+    simplefi_api_key = _get_simplefi_api_key(application)
+
+    reference = {
+        'email': application.email,
+        'application_id': application.id,
+        'is_application_fee': True,
+    }
+
+    logger.info(
+        'Creating application fee payment. Email: %s, Amount: %s',
+        user.email,
+        fee_amount,
+    )
+    payment_request = simplefi.create_payment(
+        fee_amount,
+        reference=reference,
+        simplefi_api_key=simplefi_api_key,
+    )
+
+    response = PaymentPreview.model_construct(
+        application_id=application.id,
+        products=[],
+        currency='USD',
+        amount=fee_amount,
+        original_amount=fee_amount,
+        is_application_fee=True,
+        external_id=payment_request['id'],
+        status=payment_request['status'],
+        checkout_url=payment_request['checkout_url'],
+    )
 
     return response

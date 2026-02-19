@@ -58,7 +58,9 @@ def test_create_payment_zero_quantity_validation(
         'products': [{**test_payment_data['products'][0], 'quantity': 0}],
     }
 
-    response = client.post('/payments/', json=invalid_payment_data, headers=auth_headers)
+    response = client.post(
+        '/payments/', json=invalid_payment_data, headers=auth_headers
+    )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
@@ -72,7 +74,9 @@ def test_create_payment_negative_quantity_validation(
         'products': [{**test_payment_data['products'][0], 'quantity': -1}],
     }
 
-    response = client.post('/payments/', json=invalid_payment_data, headers=auth_headers)
+    response = client.post(
+        '/payments/', json=invalid_payment_data, headers=auth_headers
+    )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 

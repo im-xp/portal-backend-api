@@ -17,6 +17,7 @@ from app.core import models, payments_utils
 from app.core.invoice import generate_invoice_pdf
 from app.core.logger import logger
 from app.core.security import TokenData
+from app.core.utils import current_time
 
 
 class CRUDPayment(
@@ -133,6 +134,52 @@ class CRUDPayment(
         db.commit()
         db.refresh(db_payment)
         return db_payment
+
+    def create_application_fee(
+        self,
+        db: Session,
+        obj: schemas.ApplicationFeeCreate,
+        user: Optional[TokenData] = None,
+    ) -> models.Payment:
+        payment_data = payments_utils.create_application_fee_payment(
+            db, obj.application_id, user
+        )
+
+        payment_dict = payment_data.model_dump(
+            exclude={'products', 'original_amount', 'edit_passes', 'coupon_code'}
+        )
+        db_payment = self.model(**payment_dict)
+
+        db.add(db_payment)
+        db.flush()
+
+        if db_payment.status == 'approved':
+            self._handle_fee_approved(db, db_payment)
+
+        db.commit()
+        db.refresh(db_payment)
+        return db_payment
+
+    def _handle_fee_approved(self, db: Session, payment: models.Payment) -> None:
+        """Handle application fee approval: submit the application."""
+        from app.api.applications.crud import (
+            _send_application_received_mail,
+            calculate_status,
+        )
+
+        application = payment.application
+        if application.submitted_at is None:
+            application.submitted_at = current_time()
+
+        application.clean_reviews()
+        application.status, application.requested_discount = calculate_status(
+            application, popup_city=application.popup_city
+        )
+
+        if application.status == 'in review':
+            _send_application_received_mail(application)
+
+        db.flush()
 
     def _add_products_to_attendees(self, payment: models.Payment) -> None:
         if not payment.products_snapshot:
@@ -317,6 +364,12 @@ class CRUDPayment(
             source=source,
         )
         updated_payment = self.update(db, payment.id, payment_update, user)
+
+        if payment.is_application_fee:
+            self._handle_fee_approved(db, payment)
+            logger.info('Application fee payment %s approved', payment.id)
+            db.commit()
+            return updated_payment
 
         if payment.edit_passes:
             self._clear_application_products(db, payment)

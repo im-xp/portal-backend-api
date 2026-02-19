@@ -19,6 +19,7 @@ class PaymentBase(BaseModel):
     currency: Optional[str] = None
     rate: Optional[float] = None
     checkout_url: Optional[str] = None
+    is_application_fee: Optional[bool] = False
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -54,6 +55,7 @@ class PaymentPreview(PaymentCreate, PaymentBase):
     discount_value: Optional[float] = None
     group_id: Optional[int] = None
     is_installment_plan: bool = False
+    is_application_fee: bool = False
     installments_total: Optional[int] = None
 
 
@@ -79,12 +81,17 @@ class Payment(PaymentBase):
     id: int
     products_snapshot: List[PaymentProductResponse]
     is_installment_plan: Optional[bool] = None
+    is_application_fee: Optional[bool] = None
     installments_total: Optional[int] = None
     installments_paid: Optional[int] = None
 
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+
+class ApplicationFeeCreate(BaseModel):
+    application_id: int
 
 
 class PaymentFilter(BaseModel):
