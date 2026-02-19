@@ -199,6 +199,13 @@ def test_submit_application_rejected_without_fee(
     assert response.status_code == status.HTTP_402_PAYMENT_REQUIRED
     assert response.json()['detail'] == 'Application fee must be paid before submitting'
 
+    # Verify application is still in draft (not persisted as in_review)
+    from app.api.applications.models import Application
+
+    application = db_session.get(Application, draft_application_with_fee['id'])
+    db_session.refresh(application)
+    assert application.status == 'draft'
+
 
 def test_submit_application_succeeds_with_fee_paid(
     client,

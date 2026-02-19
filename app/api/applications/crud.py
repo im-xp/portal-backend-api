@@ -269,11 +269,15 @@ class CRUDApplication(
         obj: schemas.ApplicationUpdate,
         user: TokenData,
     ) -> models.Application:
+        # Validate fee before super().update() which commits the status change
+        if obj.status == schemas.ApplicationStatus.IN_REVIEW:
+            application_pre = self.get(db, id, user)
+            _check_application_fee_paid(db, id, application_pre.popup_city)
+
         application = super().update(db, id, obj, user)
         popup_city = application.popup_city
 
         if obj.status == schemas.ApplicationStatus.IN_REVIEW:
-            _check_application_fee_paid(db, application.id, popup_city)
             if application.submitted_at is None:
                 application.submitted_at = current_time()
 
