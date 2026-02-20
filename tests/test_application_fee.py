@@ -338,6 +338,64 @@ def test_webhook_approves_fee_and_submits_application(
     assert application.status == 'in review'
 
 
+def test_application_response_fee_fields_when_required(
+    client,
+    auth_headers,
+    draft_application_with_fee,
+    fee_popup_city,
+    db_session,
+):
+    """Application response includes fee_required=True and fee_paid=False."""
+    app_id = draft_application_with_fee['id']
+    response = client.get(f'/applications/{app_id}', headers=auth_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['application_fee_required'] is True
+    assert data['application_fee_paid'] is False
+
+
+def test_application_response_fee_fields_when_paid(
+    client,
+    auth_headers,
+    draft_application_with_fee,
+    fee_popup_city,
+    mock_create_payment,
+    db_session,
+):
+    """Application response shows fee_paid=True after approval."""
+    app_id = draft_application_with_fee['id']
+
+    # Create and approve fee payment
+    response = client.post(
+        '/payments/application-fee',
+        json={'application_id': app_id},
+        headers=auth_headers,
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payment = db_session.get(Payment, response.json()['id'])
+    payment.status = 'approved'
+    db_session.commit()
+
+    response = client.get(f'/applications/{app_id}', headers=auth_headers)
+    data = response.json()
+    assert data['application_fee_required'] is True
+    assert data['application_fee_paid'] is True
+
+
+def test_application_response_fee_fields_when_not_required(
+    client,
+    auth_headers,
+    draft_application,
+    db_session,
+):
+    """Application response shows fee_required=False when no fee configured."""
+    app_id = draft_application['id']
+    response = client.get(f'/applications/{app_id}', headers=auth_headers)
+    data = response.json()
+    assert data['application_fee_required'] is False
+    assert data['application_fee_paid'] is False
+
+
 def test_submit_application_without_fee_no_gate(
     client,
     auth_headers,

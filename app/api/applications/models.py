@@ -217,6 +217,19 @@ class Application(Base):
                 return attendee
 
     @property
+    def application_fee_required(self) -> bool:
+        fee = self.popup_city.application_fee
+        return bool(fee and fee > 0)
+
+    @property
+    def application_fee_paid(self) -> bool:
+        if not self.application_fee_required:
+            return False
+        return any(
+            p.is_application_fee and p.status == 'approved' for p in self.payments
+        )
+
+    @property
     def red_flag(self) -> bool:
         return self.citizen.red_flag
 

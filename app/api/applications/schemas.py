@@ -138,6 +138,8 @@ class Application(InternalApplicationCreate):
     products: Optional[list[Product]] = None
     credit: Optional[float] = None
     red_flag: Optional[bool] = None
+    application_fee_required: Optional[bool] = None
+    application_fee_paid: Optional[bool] = None
 
     model_config = ConfigDict(
         from_attributes=True,
