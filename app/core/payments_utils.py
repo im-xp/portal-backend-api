@@ -392,7 +392,7 @@ def _calculate_max_installments(installments_deadline: datetime) -> int:
     today = datetime.now()
     delta = installments_deadline - today
     installments = delta.days // 14  # every 2 weeks
-    return min(max(1, installments - 1), settings.MAX_ALLOWED_INSTALLMENTS)
+    return min(max(1, installments), settings.MAX_ALLOWED_INSTALLMENTS)
 
 
 def preview_payment(
