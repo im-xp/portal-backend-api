@@ -83,6 +83,9 @@ class Payment(Base):
     discount_value = Column(Float, nullable=True)
     edit_passes = Column(Boolean, default=False)
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+    is_application_fee = Column(
+        Boolean, default=False, nullable=False, server_default='false'
+    )
 
     application: Mapped['Application'] = relationship(
         'Application', back_populates='payments'

@@ -7,10 +7,10 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, relationship, synonym
 
 from app.api.applications.schemas import ApplicationStatus
@@ -138,8 +138,8 @@ class Application(Base):
     created_by = Column(String)
     updated_by = Column(String)
 
-    # Custom form data for popup-specific questions (stored as JSONB)
-    custom_data = Column(JSONB, default=dict, server_default='{}')
+    # Custom form data for popup-specific questions
+    custom_data = Column(JSON, default=dict, server_default='{}')
 
     __mapper_args__ = {'exclude_properties': ['citizen', 'popup_city']}
 
@@ -215,6 +215,19 @@ class Application(Base):
         for attendee in self.attendees:
             if attendee.category == 'main':
                 return attendee
+
+    @property
+    def application_fee_required(self) -> bool:
+        fee = self.popup_city.application_fee
+        return bool(fee and fee > 0)
+
+    @property
+    def application_fee_paid(self) -> bool:
+        if not self.application_fee_required:
+            return False
+        return any(
+            p.is_application_fee and p.status == 'approved' for p in self.payments
+        )
 
     @property
     def red_flag(self) -> bool:

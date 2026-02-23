@@ -46,6 +46,16 @@ def create_payment(
     return payment_crud.create(db=db, obj=payment, user=current_user)
 
 
+@router.post('/application-fee', response_model=schemas.Payment)
+def create_application_fee(
+    payment: schemas.ApplicationFeeCreate,
+    current_user: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    logger.info('%s Creating application fee payment: %s', current_user.email, payment)
+    return payment_crud.create_application_fee(db=db, obj=payment, user=current_user)
+
+
 @router.post('/preview', response_model=schemas.PaymentPreview)
 def preview_payment(
     payment: schemas.PaymentCreate,

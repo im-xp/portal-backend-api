@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PaymentSource(str, Enum):
@@ -19,6 +19,7 @@ class PaymentBase(BaseModel):
     currency: Optional[str] = None
     rate: Optional[float] = None
     checkout_url: Optional[str] = None
+    is_application_fee: Optional[bool] = False
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -27,7 +28,7 @@ class PaymentBase(BaseModel):
 class PaymentProduct(BaseModel):
     product_id: int
     attendee_id: int
-    quantity: int
+    quantity: int = Field(ge=1)
     custom_price: Optional[float] = (
         None  # For donation products - user-specified amount
     )
@@ -54,6 +55,7 @@ class PaymentPreview(PaymentCreate, PaymentBase):
     discount_value: Optional[float] = None
     group_id: Optional[int] = None
     is_installment_plan: bool = False
+    is_application_fee: bool = False
     installments_total: Optional[int] = None
 
 
@@ -78,10 +80,18 @@ class PaymentProductResponse(BaseModel):
 class Payment(PaymentBase):
     id: int
     products_snapshot: List[PaymentProductResponse]
+    is_installment_plan: Optional[bool] = None
+    is_application_fee: Optional[bool] = None
+    installments_total: Optional[int] = None
+    installments_paid: Optional[int] = None
 
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+
+class ApplicationFeeCreate(BaseModel):
+    application_id: int
 
 
 class PaymentFilter(BaseModel):

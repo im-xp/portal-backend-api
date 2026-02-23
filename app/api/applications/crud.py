@@ -122,6 +122,31 @@ def _send_application_received_mail(application: models.Application):
     )
 
 
+def _check_application_fee_paid(
+    db: Session, application_id: int, popup_city: PopUpCity
+):
+    """Check if application fee has been paid when required."""
+    if not popup_city.application_fee or popup_city.application_fee <= 0:
+        return
+
+    from app.api.payments.models import Payment
+
+    approved_fee = (
+        db.query(Payment)
+        .filter(
+            Payment.application_id == application_id,
+            Payment.is_application_fee.is_(True),
+            Payment.status == 'approved',
+        )
+        .first()
+    )
+    if not approved_fee:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail='Application fee must be paid before submitting',
+        )
+
+
 class CRUDApplication(
     CRUDBase[models.Application, schemas.ApplicationCreate, schemas.ApplicationCreate]
 ):
@@ -212,7 +237,14 @@ class CRUDApplication(
                     detail='Popup city not found',
                 )
 
-            obj.status, obj.requested_discount = calculate_status(obj, popup_city=popup)
+            # If application fee is required, force to draft — can't submit without paying
+            if popup.application_fee and popup.application_fee > 0:
+                obj.status = schemas.ApplicationStatus.DRAFT
+                obj.submitted_at = None
+            else:
+                obj.status, obj.requested_discount = calculate_status(
+                    obj, popup_city=popup
+                )
 
         application = super().create(db, obj)
 
@@ -237,6 +269,11 @@ class CRUDApplication(
         obj: schemas.ApplicationUpdate,
         user: TokenData,
     ) -> models.Application:
+        # Validate fee before super().update() which commits the status change
+        if obj.status == schemas.ApplicationStatus.IN_REVIEW:
+            application_pre = self.get(db, id, user)
+            _check_application_fee_paid(db, id, application_pre.popup_city)
+
         application = super().update(db, id, obj, user)
         popup_city = application.popup_city
 

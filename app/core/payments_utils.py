@@ -24,92 +24,98 @@ def _get_discounted_price(price: float, discount_value: float) -> float:
 
 
 def _get_credit(application: Application, discount_value: float) -> float:
-    total = 0
+    total = 0.0
     for a in application.attendees:
         patreon = False
-        subtotal = 0
+        subtotal = 0.0
         for p in a.attendee_products:
             if p.product.category == 'patreon':
                 patreon = True
-                subtotal = 0
+                subtotal = 0.0
             elif not patreon:
-                subtotal += p.product.price * p.quantity
+                subtotal += float(p.product.price) * int(p.quantity)  # ty: ignore[invalid-argument-type]
         if not patreon:
             total += subtotal
 
-    return _get_discounted_price(total, discount_value) + application.credit
+    return _get_discounted_price(total, discount_value) + float(application.credit)  # ty: ignore[invalid-argument-type]
 
 
-def _calculate_amounts(
-    db: Session,
+def _classify_products(
     requested_products: List[schemas.PaymentProduct],
+    valid_products: List[Product],
     already_patreon: bool,
-) -> Tuple[float, float, float, float]:
+) -> Tuple[List[float], float, float, float, float]:
     """
-    Calculate amounts for different product categories.
-    Returns: (discountable_amount, non_discountable_amount, supporter_amount, patreon_amount)
+    Classify requested products and compute category amounts.
+
+    Returns:
+        unit_prices: pre-discount unit price per requested product (for the reference)
+        discountable_amount, non_discountable_amount, supporter_amount, patreon_amount
 
     Discounts only apply to regular passes (e.g., Portal Entry Pass).
-    Non-discountable includes: lodging, portal-patron (premium pass)
+    Non-discountable includes: lodging, donations, portal-patron (premium pass)
     """
-    product_ids = list(set(rp.product_id for rp in requested_products))
-    product_models = {
-        p.id: p for p in db.query(Product).filter(Product.id.in_(product_ids)).all()
-    }
+    product_map = {p.id: p for p in valid_products}
 
-    attendees = {}
+    # Pre-scan: which attendees are buying patreon in this request?
+    patreon_attendees = set()
+    for rp in requested_products:
+        pm = product_map.get(rp.product_id)
+        if pm and pm.category == 'patreon':
+            patreon_attendees.add(rp.attendee_id)
+
+    discountable_amount = 0.0
+    non_discountable_amount = 0.0
+    supporter_amount = 0.0
+    patreon_amount = 0.0
+    unit_prices: List[float] = []
+
     for req_prod in requested_products:
-        product_model = product_models.get(req_prod.product_id)
+        product_model = product_map.get(req_prod.product_id)
         if not product_model:
             logger.error(f'Product model not found for ID: {req_prod.product_id}')
+            unit_prices.append(0.0)
             continue
 
         quantity = req_prod.quantity
-        attendee_id = req_prod.attendee_id
-        if attendee_id not in attendees:
-            attendees[attendee_id] = {
-                'discountable': 0,
-                'non_discountable': 0,
-                'supporter': 0,
-                'patreon': 0,
-            }
 
-        if attendees[attendee_id]['patreon'] > 0:
+        # Patreon replaces all other products for the attendee
+        if (
+            req_prod.attendee_id in patreon_attendees
+            and product_model.category != 'patreon'
+        ):
+            unit_prices.append(0.0)
             continue
 
+        unit_price = float(product_model.price)  # ty: ignore[invalid-argument-type]
+
         if product_model.category == 'patreon':
-            attendees[attendee_id]['patreon'] = (
-                product_model.price * quantity if not already_patreon else 0
-            )
-            attendees[attendee_id]['discountable'] = 0
-            attendees[attendee_id]['non_discountable'] = 0
-            attendees[attendee_id]['supporter'] = 0
+            price = unit_price if not already_patreon else 0.0
+            patreon_amount += price * quantity
+            unit_prices.append(price)
         elif product_model.category == 'donation':
-            # Donations use custom_price from request, not product.price
-            # Donations are non-discountable (coupons shouldn't reduce donations)
-            price = req_prod.custom_price if req_prod.custom_price else 0
-            attendees[attendee_id]['non_discountable'] += price * quantity
+            price = float(req_prod.custom_price) if req_prod.custom_price else 0.0
+            non_discountable_amount += price * quantity
+            unit_prices.append(price)
         elif product_model.category == 'supporter':
-            attendees[attendee_id]['supporter'] += product_model.price * quantity
+            supporter_amount += unit_price * quantity
+            unit_prices.append(unit_price)
         elif (
             product_model.category == 'lodging' or product_model.slug == 'portal-patron'
         ):
-            # Lodging and Portal Patron are NOT eligible for discounts
-            attendees[attendee_id]['non_discountable'] += product_model.price * quantity
+            non_discountable_amount += unit_price * quantity
+            unit_prices.append(unit_price)
         else:
-            # Regular passes (like Portal Entry Pass) ARE eligible for discounts
-            attendees[attendee_id]['discountable'] += product_model.price * quantity
+            discountable_amount += unit_price * quantity
+            unit_prices.append(unit_price)
 
-    discountable_amount = sum(a['discountable'] for a in attendees.values())
-    non_discountable_amount = sum(a['non_discountable'] for a in attendees.values())
-    supporter_amount = sum(a['supporter'] for a in attendees.values())
-    patreon_amount = sum(a['patreon'] for a in attendees.values())
     logger.info('Discountable amount: %s', discountable_amount)
     logger.info('Non-discountable amount: %s', non_discountable_amount)
     logger.info('Supporter amount: %s', supporter_amount)
     logger.info('Patreon amount: %s', patreon_amount)
 
     return (
+        unit_prices,
         discountable_amount,
         non_discountable_amount,
         supporter_amount,
@@ -171,7 +177,7 @@ def _validate_products(
         db=db,
         filters=ProductFilter(
             id_in=requested_product_ids,
-            popup_city_id=application.popup_city_id,
+            popup_city_id=application.popup_city_id,  # ty: ignore[invalid-argument-type]
             is_active=True,
         ),
         user=user,
@@ -264,24 +270,20 @@ def _apply_discounts(
     db: Session,
     obj: schemas.PaymentCreate,
     application: Application,
-    already_patreon: bool,
+    discountable_amount: float,
+    non_discountable_amount: float,
+    supporter_amount: float,
+    patreon_amount: float,
 ) -> PaymentPreview:
     discount_assigned = application.discount_assigned or 0
+    edit_passes = obj.edit_passes or False
 
     response = PaymentPreview(
         products=obj.products,
-        application_id=application.id,
+        application_id=application.id,  # ty: ignore[invalid-argument-type]
         currency='USD',
-        edit_passes=obj.edit_passes,
+        edit_passes=edit_passes,
         discount_value=discount_assigned,
-    )
-
-    discountable_amount, non_discountable_amount, supporter_amount, patreon_amount = (
-        _calculate_amounts(
-            db,
-            obj.products,
-            already_patreon,
-        )
     )
 
     response.original_amount = (
@@ -297,7 +299,7 @@ def _apply_discounts(
         patreon_amount=patreon_amount,
         discount_value=discount_assigned,
         application=application,
-        edit_passes=obj.edit_passes,
+        edit_passes=edit_passes,
     )
 
     if application.group:
@@ -310,7 +312,7 @@ def _apply_discounts(
             patreon_amount=patreon_amount,
             discount_value=discount_value,
             application=application,
-            edit_passes=obj.edit_passes,
+            edit_passes=edit_passes,
         )
         if discounted_amount < response.amount:
             response.amount = discounted_amount
@@ -320,7 +322,7 @@ def _apply_discounts(
         coupon_code = coupon_code_crud.get_by_code(
             db,
             code=obj.coupon_code,
-            popup_city_id=application.popup_city_id,
+            popup_city_id=application.popup_city_id,  # ty: ignore[invalid-argument-type]
         )
         discounted_amount = _calculate_price(
             discountable_amount=discountable_amount,
@@ -329,7 +331,7 @@ def _apply_discounts(
             patreon_amount=patreon_amount,
             discount_value=coupon_code.discount_value,
             application=application,
-            edit_passes=obj.edit_passes,
+            edit_passes=edit_passes,
         )
         if discounted_amount < response.amount:
             response.amount = discounted_amount
@@ -344,7 +346,7 @@ def _prepare_payment_response(
     db: Session,
     obj: schemas.PaymentCreate,
     user: TokenData,
-) -> Tuple[schemas.PaymentPreview, Application, List[Product]]:
+) -> Tuple[schemas.PaymentPreview, Application, List[Product], List[float]]:
     application = application_crud.get(db, obj.application_id, user)
     _validate_application(application)
 
@@ -361,25 +363,36 @@ def _prepare_payment_response(
         application,
         valid_products,
         requested_product_ids,
-        obj.edit_passes,
+        obj.edit_passes or False,
     )
+
+    (
+        unit_prices,
+        discountable_amount,
+        non_discountable_amount,
+        supporter_amount,
+        patreon_amount,
+    ) = _classify_products(obj.products, valid_products, already_patreon)
 
     response = _apply_discounts(
         db,
         obj,
         application,
-        already_patreon,
+        discountable_amount,
+        non_discountable_amount,
+        supporter_amount,
+        patreon_amount,
     )
 
-    return response, application, valid_products
+    return response, application, valid_products, unit_prices
 
 
-def _calculate_max_installments(start_date: datetime) -> int:
-    """Calculate the maximum number of bi-weekly installments based on the start date."""
+def _calculate_max_installments(installments_deadline: datetime) -> int:
+    """Calculate the maximum number of bi-weekly installments based on the installments deadline."""
     today = datetime.now()
-    delta = start_date - today
+    delta = installments_deadline - today
     installments = delta.days // 14  # every 2 weeks
-    return min(max(1, installments - 1), settings.MAX_ALLOWED_INSTALLMENTS)
+    return min(max(1, installments), settings.MAX_ALLOWED_INSTALLMENTS)
 
 
 def preview_payment(
@@ -387,7 +400,7 @@ def preview_payment(
     obj: schemas.PaymentCreate,
     user: TokenData,
 ) -> schemas.PaymentPreview:
-    response, _, _ = _prepare_payment_response(db, obj, user)
+    response, _, _, _ = _prepare_payment_response(db, obj, user)
     return response
 
 
@@ -396,13 +409,16 @@ def create_payment(
     obj: schemas.PaymentCreate,
     user: TokenData,
 ) -> PaymentPreview:
-    response, application, valid_products = _prepare_payment_response(db, obj, user)
+    response, application, valid_products, unit_prices = _prepare_payment_response(
+        db, obj, user
+    )
     simplefi_api_key = _get_simplefi_api_key(application)
+    amount = response.amount or 0.0
 
-    if response.amount <= 0:
+    if amount <= 0:
         response.status = 'approved'
-        if response.amount < 0:
-            application.credit = -response.amount
+        if amount < 0:
+            application.credit = -amount
             response.amount = 0
         else:
             application.credit = 0
@@ -414,33 +430,37 @@ def create_payment(
     # --- Create a lookup for product names --- #
     valid_products_names = {p.id: p.name for p in valid_products}
 
-    start_date = application.popup_city.start_date
+    installments_deadline = application.popup_city.installments_deadline
     max_installments = (
-        _calculate_max_installments(start_date) if start_date is not None else None
+        _calculate_max_installments(installments_deadline)
+        if installments_deadline is not None
+        else None
     )
 
     reference = {
         'email': application.email,
         'application_id': application.id,
+        'amount': response.original_amount,
         'products': [
             {
                 'product_id': req_prod.product_id,
                 'name': valid_products_names[req_prod.product_id],
                 'quantity': req_prod.quantity,
                 'attendee_id': req_prod.attendee_id,
+                'unit_price': unit_prices[i],
             }
-            for req_prod in obj.products
+            for i, req_prod in enumerate(obj.products)
         ],
     }
 
     logger.info(
         'Creating payment request. Email: %s, Amount: %s, Max Installments: %s',
         user.email,
-        response.amount,
+        amount,
         max_installments,
     )
     payment_request = simplefi.create_payment(
-        response.amount,
+        amount,
         reference=reference,
         max_installments=max_installments,
         name='Eclipse Passes',
@@ -454,5 +474,89 @@ def create_payment(
     # Set installment plan fields
     if max_installments is not None and max_installments > 1:
         response.is_installment_plan = True
+
+    return response
+
+
+def create_application_fee_payment(
+    db: Session,
+    application_id: int,
+    user: TokenData,
+) -> PaymentPreview:
+    from app.api.payments.models import Payment as PaymentModel
+
+    application = application_crud.get(db, application_id, user)
+
+    if application.status != ApplicationStatus.DRAFT.value:
+        raise HTTPException(
+            status_code=400, detail='Application must be in draft status'
+        )
+
+    popup_city = application.popup_city
+    fee_amount = popup_city.application_fee
+    if not fee_amount or fee_amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail='This popup city does not require an application fee',
+        )
+
+    # Check for existing approved fee payment
+    existing_approved = (
+        db.query(PaymentModel)
+        .filter(
+            PaymentModel.application_id == application.id,
+            PaymentModel.is_application_fee.is_(True),
+            PaymentModel.status == 'approved',
+        )
+        .first()
+    )
+    if existing_approved:
+        raise HTTPException(
+            status_code=400, detail='Application fee has already been paid'
+        )
+
+    # Cancel any existing pending fee payments
+    pending_fees = (
+        db.query(PaymentModel)
+        .filter(
+            PaymentModel.application_id == application.id,
+            PaymentModel.is_application_fee.is_(True),
+            PaymentModel.status == 'pending',
+        )
+        .all()
+    )
+    for pf in pending_fees:
+        pf.status = 'cancelled'
+
+    simplefi_api_key = _get_simplefi_api_key(application)
+
+    reference = {
+        'email': application.email,
+        'application_id': application.id,
+        'is_application_fee': True,
+    }
+
+    logger.info(
+        'Creating application fee payment. Email: %s, Amount: %s',
+        user.email,
+        fee_amount,
+    )
+    payment_request = simplefi.create_payment(
+        fee_amount,
+        reference=reference,
+        simplefi_api_key=simplefi_api_key,
+    )
+
+    response = PaymentPreview.model_construct(
+        application_id=application.id,
+        products=[],
+        currency='USD',
+        amount=fee_amount,
+        original_amount=fee_amount,
+        is_application_fee=True,
+        external_id=payment_request['id'],
+        status=payment_request['status'],
+        checkout_url=payment_request['checkout_url'],
+    )
 
     return response

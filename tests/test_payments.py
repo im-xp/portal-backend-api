@@ -48,6 +48,38 @@ def test_create_payment_unauthorized(client, test_payment_data):
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
+def test_create_payment_zero_quantity_validation(
+    client,
+    auth_headers,
+    test_payment_data,
+):
+    invalid_payment_data = {
+        **test_payment_data,
+        'products': [{**test_payment_data['products'][0], 'quantity': 0}],
+    }
+
+    response = client.post(
+        '/payments/', json=invalid_payment_data, headers=auth_headers
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_create_payment_negative_quantity_validation(
+    client,
+    auth_headers,
+    test_payment_data,
+):
+    invalid_payment_data = {
+        **test_payment_data,
+        'products': [{**test_payment_data['products'][0], 'quantity': -1}],
+    }
+
+    response = client.post(
+        '/payments/', json=invalid_payment_data, headers=auth_headers
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
 def test_create_payment_success(
     client,
     auth_headers,
@@ -458,9 +490,8 @@ def test_simplefi_webhook_invalid_event_type(
     }
 
     response = client.post('/webhooks/simplefi', json=webhook_data)
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    err_msg = 'Event type is not new_payment or new_card_payment'
-    assert response.json()['detail'] == err_msg
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['message'] == 'Event type invalid_event_type not handled'
 
 
 def test_use_coupon_code(
@@ -1264,6 +1295,7 @@ def test_simplefi_installment_plan_cancelled_idempotent(
     client,
     auth_headers,
     test_payment_data,
+    test_products,
     mock_create_payment,
     mock_webhook_cache,
     db_session,
