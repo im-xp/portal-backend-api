@@ -22,6 +22,7 @@ class PopUpCityBase(BaseModel):
     allows_children: Optional[bool] = False
     allows_coupons: Optional[bool] = False
     application_fee: Optional[float] = None
+    installments_deadline: Optional[datetime] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

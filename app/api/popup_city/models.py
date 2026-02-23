@@ -60,6 +60,7 @@ class PopUpCity(Base):
     portal_order = Column(Float, nullable=False, default=0)
     simplefi_api_key = Column(String)
     application_fee = Column(Float, nullable=True)
+    installments_deadline = Column(DateTime, nullable=True)
     applications_imported = Column(Boolean, nullable=False, default=False)
 
     templates: Mapped[List[EmailTemplate]] = relationship(

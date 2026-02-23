@@ -387,10 +387,10 @@ def _prepare_payment_response(
     return response, application, valid_products, unit_prices
 
 
-def _calculate_max_installments(start_date: datetime) -> int:
-    """Calculate the maximum number of bi-weekly installments based on the start date."""
+def _calculate_max_installments(installments_deadline: datetime) -> int:
+    """Calculate the maximum number of bi-weekly installments based on the installments deadline."""
     today = datetime.now()
-    delta = start_date - today
+    delta = installments_deadline - today
     installments = delta.days // 14  # every 2 weeks
     return min(max(1, installments - 1), settings.MAX_ALLOWED_INSTALLMENTS)
 
@@ -430,9 +430,11 @@ def create_payment(
     # --- Create a lookup for product names --- #
     valid_products_names = {p.id: p.name for p in valid_products}
 
-    start_date = application.popup_city.start_date
+    installments_deadline = application.popup_city.installments_deadline
     max_installments = (
-        _calculate_max_installments(start_date) if start_date is not None else None  # ty: ignore[invalid-argument-type]
+        _calculate_max_installments(installments_deadline)
+        if installments_deadline is not None
+        else None
     )
 
     reference = {
