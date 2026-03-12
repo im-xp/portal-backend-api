@@ -76,7 +76,7 @@ def create_payment(
 
     base_url = urllib.parse.urljoin(
         get_popup_frontend_url(popup_slug),
-        f'/portal/{urllib.parse.quote(popup_slug, safe="")}/passes/buy',
+        f'/portal/{urllib.parse.quote(popup_slug, safe="")}',
     )
     redirect_urls = {
         'success_url': f'{base_url}?checkout=success',
