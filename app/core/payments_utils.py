@@ -465,6 +465,7 @@ def create_payment(
         max_installments=max_installments,
         name='Eclipse Passes',
         simplefi_api_key=simplefi_api_key,
+        popup_slug=application.popup_city.slug,
     )
 
     response.external_id = payment_request['id']
@@ -545,6 +546,7 @@ def create_application_fee_payment(
         fee_amount,
         reference=reference,
         simplefi_api_key=simplefi_api_key,
+        popup_slug=popup_city.slug,
     )
 
     response = PaymentPreview.model_construct(

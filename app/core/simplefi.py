@@ -4,7 +4,7 @@ from typing import Optional
 
 import requests
 
-from app.core.config import settings
+from app.core.config import get_popup_frontend_url, settings
 from app.core.logger import logger
 
 
@@ -66,12 +66,22 @@ def create_payment(
     amount: float,
     *,
     simplefi_api_key: str,
+    popup_slug: str,
     reference: Optional[dict] = None,
     max_installments: Optional[int] = None,
     name: Optional[str] = None,
 ) -> dict:
     logger.info('Creating payment for amount: %s', amount)
     notification_url = urllib.parse.urljoin(settings.BACKEND_URL, 'webhooks/simplefi')
+
+    base_url = urllib.parse.urljoin(
+        get_popup_frontend_url(popup_slug),
+        f'/portal/{urllib.parse.quote(popup_slug, safe="")}/passes/buy',
+    )
+    redirect_urls = {
+        'success_url': f'{base_url}?checkout=success',
+        'cancel_url': base_url,
+    }
 
     if max_installments is not None and max_installments > 1:
         body = {
@@ -84,6 +94,7 @@ def create_payment(
             'interval': 'week',
             'interval_count': 2,  # every 2 weeks
             'notification_url': notification_url,
+            'redirect_urls': redirect_urls,
         }
         return _create_installments_plan(body, simplefi_api_key)
 
@@ -93,6 +104,9 @@ def create_payment(
         'reference': reference if reference else {},
         'memo': 'Citizen Portal Payment',
         'notification_url': notification_url,
+        'redirect_urls': redirect_urls,
     }
 
-    return _create_payment_request(body, simplefi_api_key)
+    response = _create_payment_request(body, simplefi_api_key)
+    response['checkout_url'] = response['checkout_v2_url']
+    return response
