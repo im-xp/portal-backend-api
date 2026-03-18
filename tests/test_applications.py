@@ -2,6 +2,7 @@ from fastapi import status
 
 from app.api.applications.models import Application
 from app.api.applications.schemas import ApplicationStatus
+from app.core.config import settings
 from tests.conftest import get_auth_headers_for_citizen
 
 
@@ -173,6 +174,89 @@ def test_update_application_success(client, auth_headers, test_application):
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data['first_name'] == 'Updated'
+
+
+def test_review_application_accepts_and_normalizes_null_discount(
+    client, auth_headers, test_application
+):
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': None},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['status'] == ApplicationStatus.ACCEPTED.value
+    assert data['discount_assigned'] == 0
+    assert data['accepted_at'] is not None
+
+
+def test_review_application_rejects_and_clears_discount_and_accepted_at(
+    client, auth_headers, test_application
+):
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    client.patch(
+        f'/applications/{application_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': 25},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={'status': ApplicationStatus.REJECTED.value, 'discount_assigned': 10},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['status'] == ApplicationStatus.REJECTED.value
+    assert data['discount_assigned'] is None
+    assert data['accepted_at'] is None
+
+
+def test_review_application_requires_valid_api_key(
+    client, auth_headers, test_application
+):
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': 0},
+        headers={'x-api-key': 'invalid'},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.json()['detail'] == 'Invalid API key'
+
+
+def test_review_application_validates_discount_range(
+    client, auth_headers, test_application
+):
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': 101},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 def test_create_attendee_success(client, auth_headers, test_application):

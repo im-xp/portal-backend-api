@@ -298,6 +298,30 @@ class CRUDApplication(
         db.refresh(application)
         return application
 
+    def review(
+        self,
+        db: Session,
+        id: int,
+        obj: schemas.ApplicationReviewUpdate,
+    ) -> models.Application:
+        application = self.get(db, id, SYSTEM_TOKEN)
+        application.status = obj.status.value
+
+        if obj.status == schemas.ApplicationReviewStatus.ACCEPTED:
+            application.discount_assigned = (
+                0 if obj.discount_assigned is None else obj.discount_assigned
+            )
+            if application.accepted_at is None:
+                application.accepted_at = current_time()
+        else:
+            application.discount_assigned = None
+            application.accepted_at = None
+
+        db.add(application)
+        db.commit()
+        db.refresh(application)
+        return application
+
     def find(
         self,
         db: Session,

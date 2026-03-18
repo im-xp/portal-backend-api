@@ -208,6 +208,24 @@ def update_application(
     )
 
 
+@router.patch('/{application_id}/review', response_model=schemas.Application)
+def review_application(
+    application_id: int,
+    application_review: schemas.ApplicationReviewUpdate,
+    x_api_key: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    if x_api_key != settings.APPLICATION_REVIEW_API_KEY:
+        raise HTTPException(status_code=403, detail='Invalid API key')
+
+    logger.info('Reviewing application: %s: %s', application_id, application_review)
+    return application_crud.review(
+        db=db,
+        id=application_id,
+        obj=application_review,
+    )
+
+
 @router.post('/{application_id}/attendees', response_model=schemas.Application)
 def create_attendee(
     application_id: int,
