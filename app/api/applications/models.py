@@ -131,6 +131,11 @@ class Application(Base):
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
     group = None
 
+    product_segment_id = Column(
+        Integer, ForeignKey('product_segments.id'), nullable=True
+    )
+    product_segment = None
+
     created_by_leader = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=current_time)
@@ -236,6 +241,13 @@ class Application(Base):
 
 def setup_relationships():
     from app.api.groups.models import Group
+    from app.api.product_segments.models import ProductSegment
 
     if not hasattr(Application, 'group') or Application.group is None:
         Application.group = relationship('Group', lazy='joined')
+
+    if (
+        not hasattr(Application, 'product_segment')
+        or Application.product_segment is None
+    ):
+        Application.product_segment = relationship('ProductSegment', lazy='joined')

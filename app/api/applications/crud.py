@@ -19,6 +19,8 @@ from app.api.email_logs.crud import email_log
 from app.api.email_logs.schemas import EmailEvent
 from app.api.organizations.crud import organization as organization_crud
 from app.api.popup_city.models import PopUpCity
+from app.api.product_segments.crud import product_segment as product_segment_crud
+from app.api.product_segments.models import ProductSegment
 from app.api.products.models import Product
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN, TokenData
@@ -343,9 +345,36 @@ class CRUDApplication(
             )
             if application.accepted_at is None:
                 application.accepted_at = current_time()
+
+            # Handle product segment assignment
+            application.product_segment_id = None
+            popup_city_id = application.popup_city_id
+            popup_has_segments = (
+                db.query(ProductSegment)
+                .filter(ProductSegment.popup_city_id == popup_city_id)
+                .first()
+                is not None
+            )
+
+            if obj.segment_slug:
+                segment = product_segment_crud.get_by_slug_and_popup(
+                    db, slug=obj.segment_slug, popup_city_id=popup_city_id
+                )
+                if not segment:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f'Segment "{obj.segment_slug}" not found for this popup city',
+                    )
+                application.product_segment_id = segment.id
+            elif popup_has_segments:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='segment_slug is required for this popup city',
+                )
         else:
             application.discount_assigned = None
             application.accepted_at = None
+            application.product_segment_id = None
 
         db.add(application)
         db.commit()

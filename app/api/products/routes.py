@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.applications.models import Application
 from app.api.products import schemas
 from app.api.products.crud import product as product_crud
 from app.core.database import get_db
@@ -19,6 +20,19 @@ def get_products(
     sort_order: str = Query(default='asc', pattern='^(asc|desc)$'),
     db: Session = Depends(get_db),
 ):
+    product_segment_id = None
+    if filters.popup_city_id:
+        application = (
+            db.query(Application)
+            .filter(
+                Application.citizen_id == current_user.citizen_id,
+                Application.popup_city_id == filters.popup_city_id,
+            )
+            .first()
+        )
+        if application and application.product_segment_id:
+            product_segment_id = application.product_segment_id
+
     return product_crud.find(
         db=db,
         skip=skip,
@@ -27,6 +41,7 @@ def get_products(
         user=current_user,
         sort_by=sort_by,
         sort_order=sort_order,
+        product_segment_id=product_segment_id,
     )
 
 

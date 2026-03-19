@@ -192,6 +192,26 @@ def _validate_products(
         )
         raise HTTPException(status_code=400, detail=err_msg)
 
+    # Validate products belong to the application's segment (if assigned)
+    if application.product_segment_id:
+        from app.api.product_segments.models import ProductSegmentProduct
+
+        segment_product_ids = {
+            row.product_id
+            for row in db.query(ProductSegmentProduct.product_id)
+            .filter(
+                ProductSegmentProduct.product_segment_id
+                == application.product_segment_id
+            )
+            .all()
+        }
+        outside_segment = set(requested_product_ids) - segment_product_ids
+        if outside_segment:
+            raise HTTPException(
+                status_code=400,
+                detail='Some products are not available in your assigned segment.',
+            )
+
     return valid_products
 
 

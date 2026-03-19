@@ -7,6 +7,7 @@ from app.api.groups.models import Group
 from app.api.organizations.models import Organization
 from app.api.payments.models import Payment, PaymentInstallment, PaymentProduct
 from app.api.popup_city.models import PopUpCity
+from app.api.product_segments.models import ProductSegment, ProductSegmentProduct
 from app.api.products.models import Product
 
 # Re-export all models
@@ -22,4 +23,6 @@ __all__ = [
     'PaymentProduct',
     'PopUpCity',
     'Product',
+    'ProductSegment',
+    'ProductSegmentProduct',
 ]

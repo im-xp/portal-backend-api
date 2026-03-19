@@ -1,0 +1,580 @@
+from unittest.mock import patch
+
+from fastapi import status
+
+from app.api.applications.models import Application
+from app.api.applications.schemas import ApplicationStatus
+from app.api.product_segments.models import ProductSegment, ProductSegmentProduct
+from app.api.products.models import Product
+from app.core.config import settings
+from tests.conftest import get_auth_headers_for_citizen
+
+
+# -- Fixtures helpers --
+
+
+def _create_segment(db_session, popup_city_id, name, slug, product_ids=None):
+    segment = ProductSegment(
+        name=name,
+        slug=slug,
+        popup_city_id=popup_city_id,
+    )
+    db_session.add(segment)
+    db_session.flush()
+
+    for pid in product_ids or []:
+        db_session.add(
+            ProductSegmentProduct(product_segment_id=segment.id, product_id=pid)
+        )
+
+    db_session.commit()
+    return segment
+
+
+# =========================================================================
+# GET /product-segments/ tests
+# =========================================================================
+
+
+def test_get_product_segments_success(
+    client, db_session, test_popup_city, test_products
+):
+    seg = _create_segment(
+        db_session, test_popup_city.id, 'Segment A', 'segment-a', [test_products[0].id]
+    )
+
+    response = client.get(
+        '/product-segments/',
+        params={'popup_city_slug': test_popup_city.slug},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['name'] == 'Segment A'
+    assert data[0]['slug'] == 'segment-a'
+    assert len(data[0]['products']) == 1
+    assert data[0]['products'][0]['id'] == test_products[0].id
+
+
+def test_get_product_segments_filters_by_popup(
+    client, db_session, test_popup_city, test_products
+):
+    from app.api.popup_city.models import PopUpCity
+
+    other_popup = PopUpCity(
+        id=2,
+        name='Other City',
+        slug='other-city',
+        prefix='OC',
+        location='Other',
+        requires_approval=True,
+    )
+    db_session.add(other_popup)
+    db_session.commit()
+
+    _create_segment(db_session, test_popup_city.id, 'Seg A', 'seg-a')
+    _create_segment(db_session, other_popup.id, 'Seg B', 'seg-b')
+
+    response = client.get(
+        '/product-segments/',
+        params={'popup_city_slug': test_popup_city.slug},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['slug'] == 'seg-a'
+
+
+def test_get_product_segments_invalid_api_key(client):
+    response = client.get(
+        '/product-segments/',
+        headers={'x-api-key': 'invalid'},
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_get_product_segments_empty(client, test_popup_city):
+    response = client.get(
+        '/product-segments/',
+        params={'popup_city_slug': test_popup_city.slug},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == []
+
+
+# =========================================================================
+# PATCH /applications/{id}/review with segment_slug
+# =========================================================================
+
+
+def test_review_accept_with_segment(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    seg = _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slug': 'vip',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['status'] == ApplicationStatus.ACCEPTED.value
+    assert data['product_segment_id'] == seg.id
+
+
+def test_review_accept_requires_segment_when_popup_has_segments(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': 0},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert 'segment_slug is required' in response.json()['detail']
+
+
+def test_review_accept_without_segment_when_popup_has_no_segments(
+    client,
+    auth_headers,
+    test_application,
+    mock_email_template,
+    mock_send_mail,
+):
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': 0},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['product_segment_id'] is None
+
+
+def test_review_accept_with_invalid_segment_slug(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slug': 'nonexistent',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert 'not found' in response.json()['detail']
+
+
+def test_review_reject_ignores_segment_slug(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    # Rejecting should work even when popup has segments and no segment_slug is given
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={'status': ApplicationStatus.REJECTED.value},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['status'] == ApplicationStatus.REJECTED.value
+
+
+def test_review_reject_clears_segment(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    """Rejecting a previously-accepted application must clear product_segment_id."""
+    seg = _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    # Accept with segment
+    client.patch(
+        f'/applications/{app_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slug': 'vip',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    # Now reject
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={'status': ApplicationStatus.REJECTED.value},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['product_segment_id'] is None
+
+
+def test_review_reaccept_resets_stale_segment(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    """Re-accepting after segments are removed must not keep the old segment."""
+    seg = _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    # Accept with segment
+    client.patch(
+        f'/applications/{app_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slug': 'vip',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    # Reject
+    client.patch(
+        f'/applications/{app_id}/review',
+        json={'status': ApplicationStatus.REJECTED.value},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    # Remove all segments from the popup
+    db_session.query(ProductSegmentProduct).delete()
+    db_session.query(ProductSegment).delete()
+    db_session.commit()
+
+    # Re-accept without segment (popup now has no segments)
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={'status': ApplicationStatus.ACCEPTED.value, 'discount_assigned': 0},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['product_segment_id'] is None
+
+
+def test_create_application_cannot_set_product_segment_id(
+    client, auth_headers, test_application, db_session, test_products
+):
+    """Users must not be able to self-assign a product_segment_id on creation."""
+    seg = _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    payload = {**test_application, 'product_segment_id': seg.id}
+    response = client.post('/applications/', json=payload, headers=auth_headers)
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()['product_segment_id'] is None
+
+
+# =========================================================================
+# GET /products/ — segment filtering
+# =========================================================================
+
+
+def test_get_products_filtered_by_segment(
+    client, db_session, test_citizen, test_popup_city, test_products, auth_headers
+):
+    product1, product2 = test_products
+    seg = _create_segment(db_session, test_popup_city.id, 'VIP', 'vip', [product1.id])
+
+    # Create application with segment assigned
+    application = Application(
+        first_name='Test',
+        last_name='User',
+        email=test_citizen.primary_email,
+        citizen_id=test_citizen.id,
+        popup_city_id=test_popup_city.id,
+        _status=ApplicationStatus.ACCEPTED.value,
+        product_segment_id=seg.id,
+    )
+    db_session.add(application)
+    db_session.commit()
+
+    response = client.get(
+        '/products/',
+        params={'popup_city_id': test_popup_city.id},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    product_ids = [p['id'] for p in data]
+    assert product1.id in product_ids
+    assert product2.id not in product_ids
+
+
+def test_get_products_no_segment_returns_all(
+    client, db_session, test_citizen, test_popup_city, test_products, auth_headers
+):
+    product1, product2 = test_products
+
+    # Create application without segment
+    application = Application(
+        first_name='Test',
+        last_name='User',
+        email=test_citizen.primary_email,
+        citizen_id=test_citizen.id,
+        popup_city_id=test_popup_city.id,
+        _status=ApplicationStatus.ACCEPTED.value,
+    )
+    db_session.add(application)
+    db_session.commit()
+
+    response = client.get(
+        '/products/',
+        params={'popup_city_id': test_popup_city.id},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    product_ids = [p['id'] for p in data]
+    assert product1.id in product_ids
+    assert product2.id in product_ids
+
+
+# =========================================================================
+# Payment validation — segment enforcement
+# =========================================================================
+
+
+def test_payment_rejects_product_outside_segment(
+    client,
+    db_session,
+    test_citizen,
+    test_popup_city,
+    test_products,
+    auth_headers,
+    mock_create_payment,
+):
+    from app.api.attendees.models import Attendee
+
+    product1, product2 = test_products
+    seg = _create_segment(db_session, test_popup_city.id, 'VIP', 'vip', [product1.id])
+
+    # Create application with segment
+    application = Application(
+        first_name='Test',
+        last_name='User',
+        email=test_citizen.primary_email,
+        citizen_id=test_citizen.id,
+        popup_city_id=test_popup_city.id,
+        _status=ApplicationStatus.ACCEPTED.value,
+        product_segment_id=seg.id,
+    )
+    db_session.add(application)
+    db_session.flush()
+
+    attendee = Attendee(
+        application_id=application.id,
+        name='Test Attendee',
+        category='main',
+        email=test_citizen.primary_email,
+        check_in_code='TEST999',
+    )
+    db_session.add(attendee)
+    db_session.commit()
+
+    # Try to buy product2 which is NOT in the segment
+    response = client.post(
+        '/payments/',
+        json={
+            'application_id': application.id,
+            'products': [
+                {
+                    'product_id': product2.id,
+                    'attendee_id': attendee.id,
+                    'quantity': 1,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert 'segment' in response.json()['detail'].lower()
+
+
+def test_payment_allows_product_in_segment(
+    client,
+    db_session,
+    test_citizen,
+    test_popup_city,
+    test_products,
+    auth_headers,
+    mock_create_payment,
+):
+    from app.api.attendees.models import Attendee
+
+    product1, product2 = test_products
+    seg = _create_segment(db_session, test_popup_city.id, 'VIP', 'vip', [product1.id])
+
+    application = Application(
+        first_name='Test',
+        last_name='User',
+        email=test_citizen.primary_email,
+        citizen_id=test_citizen.id,
+        popup_city_id=test_popup_city.id,
+        _status=ApplicationStatus.ACCEPTED.value,
+        product_segment_id=seg.id,
+    )
+    db_session.add(application)
+    db_session.flush()
+
+    attendee = Attendee(
+        application_id=application.id,
+        name='Test Attendee',
+        category='main',
+        email=test_citizen.primary_email,
+        check_in_code='TEST888',
+    )
+    db_session.add(attendee)
+    db_session.commit()
+
+    # Buy product1 which IS in the segment
+    response = client.post(
+        '/payments/',
+        json={
+            'application_id': application.id,
+            'products': [
+                {
+                    'product_id': product1.id,
+                    'attendee_id': attendee.id,
+                    'quantity': 1,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == status.HTTP_200_OK
