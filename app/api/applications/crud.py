@@ -122,6 +122,36 @@ def _send_application_received_mail(application: models.Application):
     )
 
 
+def _send_review_decision_mail(db: Session, application: models.Application) -> None:
+    if application.status == schemas.ApplicationStatus.ACCEPTED:
+        event = EmailEvent.APPLICATION_APPROVED.value
+    elif application.status == schemas.ApplicationStatus.REJECTED:
+        event = EmailEvent.APPLICATION_REJECTED.value
+    else:
+        return
+
+    if email_log.has_sent_event(
+        db,
+        entity_type='application',
+        entity_id=application.id,
+        event=event,
+    ):
+        return
+
+    email_log.send_mail(
+        receiver_mail=application.email,
+        event=event,
+        db=db,
+        popup_city=application.popup_city,
+        params={
+            'first_name': application.first_name,
+            'discount_assigned': application.discount_assigned,
+        },
+        entity_type='application',
+        entity_id=application.id,
+    )
+
+
 def _check_application_fee_paid(
     db: Session, application_id: int, popup_city: PopUpCity
 ):
@@ -320,6 +350,7 @@ class CRUDApplication(
         db.add(application)
         db.commit()
         db.refresh(application)
+        _send_review_decision_mail(db, application)
         return application
 
     def find(

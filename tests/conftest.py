@@ -317,6 +317,13 @@ def mock_email_template(monkeypatch):
 
 
 @pytest.fixture
+def mock_send_mail():
+    with patch('app.api.email_logs.crud.send_mail') as mock:
+        mock.return_value = {'status': 'success'}
+        yield mock
+
+
+@pytest.fixture
 def mock_create_payment(mock_simplefi_response):
     with patch('app.core.simplefi.create_payment') as mock:
         mock.return_value = mock_simplefi_response
