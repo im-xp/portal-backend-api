@@ -35,6 +35,7 @@ class CouponCode(Base):
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     is_active = Column(Boolean, nullable=False, default=True)
+    applies_to = Column(String, default='pass', server_default='pass')
 
     created_at = Column(DateTime, default=current_time)
     updated_at = Column(DateTime, default=current_time, onupdate=current_time)
