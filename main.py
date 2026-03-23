@@ -15,6 +15,7 @@ from app.api.groups.routes import router as groups_router
 from app.api.organizations.routes import router as organizations_router
 from app.api.payments.routes import router as payments_router
 from app.api.popup_city.routes import router as popup_cities_router
+from app.api.product_segments.routes import router as product_segments_router
 from app.api.products.routes import router as products_router
 from app.api.webhooks.routes import router as webhooks_router
 from app.api.world_builders.routes import router as world_builders_router
@@ -46,6 +47,9 @@ app.include_router(payments_router, prefix='/payments', tags=['Payments'])
 app.include_router(popup_cities_router, prefix='/popups', tags=['Popups'])
 app.include_router(
     organizations_router, prefix='/organizations', tags=['Organizations']
+)
+app.include_router(
+    product_segments_router, prefix='/product-segments', tags=['Product Segments']
 )
 app.include_router(products_router, prefix='/products', tags=['Products'])
 app.include_router(webhooks_router, prefix='/webhooks', tags=['Webhooks'])

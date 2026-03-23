@@ -73,11 +73,32 @@ class CRUDEmailLog(
     def get_by_email(self, db: Session, email: str) -> List[models.EmailLog]:
         return db.query(self.model).filter(self.model.receiver_email == email).all()
 
+    def has_sent_event(
+        self,
+        db: Session,
+        *,
+        entity_type: str,
+        entity_id: int,
+        event: str,
+    ) -> bool:
+        return (
+            db.query(self.model)
+            .filter(
+                self.model.entity_type == entity_type,
+                self.model.entity_id == entity_id,
+                self.model.event == event,
+                self.model.status.in_([EmailStatus.SUCCESS, EmailStatus.SCHEDULED]),
+            )
+            .first()
+            is not None
+        )
+
     def send_mail(
         self,
         receiver_mail: str,
         *,
         event: str,
+        db: Optional[Session] = None,
         popup_city: Optional[PopUpCity] = None,
         params: Optional[dict] = None,
         send_at: Optional[datetime] = None,
@@ -99,32 +120,32 @@ class CRUDEmailLog(
                 receiver_mail, spice, citizen_id, popup_slug
             )
 
-        db = SessionLocal()
+        own_session = db is None
+        db = db or SessionLocal()
         status = EmailStatus.FAILED
         error_message = None
         template = event
-        if popup_city:
-            template = popup_city.get_email_template(event)
-            params.update(
-                {
-                    'popup_name': popup_city.name,
-                    'web_url': popup_city.web_url,
-                    'email_image': popup_city.email_image,
-                    'contact_email': popup_city.contact_email,
-                    'blog_url': popup_city.blog_url,
-                    'twitter_url': popup_city.twitter_url,
-                }
+        try:
+            if popup_city:
+                template = popup_city.get_email_template(event)
+                params.update(
+                    {
+                        'popup_name': popup_city.name,
+                        'web_url': popup_city.web_url,
+                        'email_image': popup_city.email_image,
+                        'contact_email': popup_city.contact_email,
+                        'blog_url': popup_city.blog_url,
+                        'twitter_url': popup_city.twitter_url,
+                    }
+                )
+
+            params['portal_url'] = get_popup_frontend_url(
+                popup_city.slug if popup_city else None
+            )
+            email_config = get_popup_email_config(
+                popup_city.slug if popup_city else None
             )
 
-        # Use popup-specific frontend URL for portal link in emails
-        params['portal_url'] = get_popup_frontend_url(
-            popup_city.slug if popup_city else None
-        )
-
-        # Get popup-specific email config (FROM address, name, reply-to)
-        email_config = get_popup_email_config(popup_city.slug if popup_city else None)
-
-        try:
             if send_at is not None:
                 logger.info('Scheduled email to be sent at %s', send_at)
                 status = EmailStatus.SCHEDULED
@@ -143,7 +164,10 @@ class CRUDEmailLog(
             return response_data
         except Exception as e:
             error_message = str(e)
-            raise
+            logger.error(
+                'Failed to send email %s for event %s: %s', receiver_mail, event, str(e)
+            )
+            return {'status': status, 'error': error_message}
         finally:
             try:
                 email_log_data = EmailLogCreate(
@@ -163,7 +187,8 @@ class CRUDEmailLog(
             except Exception as db_error:
                 logger.error('Failed to log email: %s', str(db_error))
             finally:
-                db.close()
+                if own_session:
+                    db.close()
 
     def send_login_mail(
         self,

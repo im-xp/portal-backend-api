@@ -35,11 +35,13 @@ def setup_test_api_keys():
     original_coupon_key = settings.COUPON_API_KEY
     original_groups_key = settings.GROUPS_API_KEY
     original_check_in_key = settings.CHECK_IN_API_KEY
+    original_application_review_key = settings.APPLICATION_REVIEW_API_KEY
 
     # Set test values
     settings.COUPON_API_KEY = 'test_coupon_api_key'
     settings.GROUPS_API_KEY = 'test_groups_api_key'
     settings.CHECK_IN_API_KEY = 'test_check_in_api_key'
+    settings.APPLICATION_REVIEW_API_KEY = 'test_application_review_api_key'
 
     yield
 
@@ -47,6 +49,7 @@ def setup_test_api_keys():
     settings.COUPON_API_KEY = original_coupon_key
     settings.GROUPS_API_KEY = original_groups_key
     settings.CHECK_IN_API_KEY = original_check_in_key
+    settings.APPLICATION_REVIEW_API_KEY = original_application_review_key
 
 
 @pytest.fixture(scope='session')
@@ -311,6 +314,13 @@ def mock_email_template(monkeypatch):
 
     monkeypatch.setattr(PopUpCity, 'get_email_template', mock_get_template)
     return mock_get_template
+
+
+@pytest.fixture
+def mock_send_mail():
+    with patch('app.api.email_logs.crud.send_mail') as mock:
+        mock.return_value = {'status': 'success'}
+        yield mock
 
 
 @pytest.fixture

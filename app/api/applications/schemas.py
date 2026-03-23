@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.api.attendees.schemas import Attendee
 from app.api.products.schemas import Product
@@ -30,6 +30,11 @@ class ApplicationStatus(str, Enum):
 class UserSettableStatus(str, Enum):
     DRAFT = ApplicationStatus.DRAFT.value
     IN_REVIEW = ApplicationStatus.IN_REVIEW.value
+
+
+class ApplicationReviewStatus(str, Enum):
+    ACCEPTED = ApplicationStatus.ACCEPTED.value
+    REJECTED = ApplicationStatus.REJECTED.value
 
 
 class ApplicationFilter(BaseModel):
@@ -119,6 +124,12 @@ class ApplicationUpdate(ApplicationBaseCommon):
     status: Optional[UserSettableStatus] = None
 
 
+class ApplicationReviewUpdate(BaseModel):
+    status: ApplicationReviewStatus
+    discount_assigned: Optional[int] = Field(default=None, ge=0, le=100)
+    segment_slugs: Optional[List[str]] = None
+
+
 class InternalApplicationCreate(ApplicationBase):
     email: str
     submitted_at: Optional[datetime] = None
@@ -135,11 +146,13 @@ class Application(InternalApplicationCreate):
     id: int
     attendees: Optional[list[Attendee]] = None
     discount_assigned: Optional[int] = None
+    accepted_at: Optional[datetime] = None
     products: Optional[list[Product]] = None
     credit: Optional[float] = None
     red_flag: Optional[bool] = None
     application_fee_required: Optional[bool] = None
     application_fee_paid: Optional[bool] = None
+    product_segment_ids: Optional[List[int]] = None
 
     model_config = ConfigDict(
         from_attributes=True,

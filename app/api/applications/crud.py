@@ -19,6 +19,8 @@ from app.api.email_logs.crud import email_log
 from app.api.email_logs.schemas import EmailEvent
 from app.api.organizations.crud import organization as organization_crud
 from app.api.popup_city.models import PopUpCity
+from app.api.product_segments.crud import product_segment as product_segment_crud
+from app.api.product_segments.models import ProductSegment
 from app.api.products.models import Product
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN, TokenData
@@ -117,6 +119,36 @@ def _send_application_received_mail(application: models.Application):
         event=EmailEvent.APPLICATION_RECEIVED.value,
         popup_city=application.popup_city,
         params={'first_name': application.first_name},
+        entity_type='application',
+        entity_id=application.id,
+    )
+
+
+def _send_review_decision_mail(db: Session, application: models.Application) -> None:
+    if application.status == schemas.ApplicationStatus.ACCEPTED:
+        event = EmailEvent.APPLICATION_APPROVED.value
+    elif application.status == schemas.ApplicationStatus.REJECTED:
+        event = EmailEvent.APPLICATION_REJECTED.value
+    else:
+        return
+
+    if email_log.has_sent_event(
+        db,
+        entity_type='application',
+        entity_id=application.id,
+        event=event,
+    ):
+        return
+
+    email_log.send_mail(
+        receiver_mail=application.email,
+        event=event,
+        db=db,
+        popup_city=application.popup_city,
+        params={
+            'first_name': application.first_name,
+            'discount_assigned': application.discount_assigned,
+        },
         entity_type='application',
         entity_id=application.id,
     )
@@ -296,6 +328,61 @@ class CRUDApplication(
         db.add(application)
         db.commit()
         db.refresh(application)
+        return application
+
+    def review(
+        self,
+        db: Session,
+        id: int,
+        obj: schemas.ApplicationReviewUpdate,
+    ) -> models.Application:
+        application = self.get(db, id, SYSTEM_TOKEN)
+        application.status = obj.status.value
+
+        if obj.status == schemas.ApplicationReviewStatus.ACCEPTED:
+            application.discount_assigned = (
+                0 if obj.discount_assigned is None else obj.discount_assigned
+            )
+            if application.accepted_at is None:
+                application.accepted_at = current_time()
+
+            # Handle product segment assignment
+            application.product_segments = []
+            popup_city_id = application.popup_city_id
+            popup_has_segments = (
+                db.query(ProductSegment)
+                .filter(ProductSegment.popup_city_id == popup_city_id)
+                .first()
+                is not None
+            )
+
+            if obj.segment_slugs:
+                segments = []
+                for slug in obj.segment_slugs:
+                    segment = product_segment_crud.get_by_slug_and_popup(
+                        db, slug=slug, popup_city_id=popup_city_id
+                    )
+                    if not segment:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f'Segment "{slug}" not found for this popup city',
+                        )
+                    segments.append(segment)
+                application.product_segments = segments
+            elif popup_has_segments:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='segment_slugs is required for this popup city',
+                )
+        else:
+            application.discount_assigned = None
+            application.accepted_at = None
+            application.product_segments = []
+
+        db.add(application)
+        db.commit()
+        db.refresh(application)
+        # _send_review_decision_mail(db, application)
         return application
 
     def find(
