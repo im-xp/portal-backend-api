@@ -382,7 +382,7 @@ class CRUDApplication(
         db.add(application)
         db.commit()
         db.refresh(application)
-        _send_review_decision_mail(db, application)
+        # _send_review_decision_mail(db, application)
         return application
 
     def find(
