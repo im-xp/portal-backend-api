@@ -21,16 +21,22 @@ class CRUDProduct(
         user: Optional[TokenData] = None,
         sort_by: str = 'created_at',
         sort_order: str = 'desc',
-        product_segment_id: Optional[int] = None,
+        product_segment_ids: Optional[List[int]] = None,
     ) -> List[models.Product]:
         query = db.query(self.model)
         query = self._apply_filters(query, filters)
 
-        if product_segment_id is not None:
-            query = query.join(
-                ProductSegmentProduct,
-                ProductSegmentProduct.product_id == self.model.id,
-            ).filter(ProductSegmentProduct.product_segment_id == product_segment_id)
+        if product_segment_ids:
+            query = (
+                query.join(
+                    ProductSegmentProduct,
+                    ProductSegmentProduct.product_id == self.model.id,
+                )
+                .filter(
+                    ProductSegmentProduct.product_segment_id.in_(product_segment_ids)
+                )
+                .distinct()
+            )
 
         if not hasattr(self.model, sort_by):
             from fastapi import HTTPException

@@ -20,6 +20,15 @@ class ProductSegmentProduct(Base):
     product_id = Column(Integer, ForeignKey('products.id'), primary_key=True)
 
 
+class ApplicationProductSegment(Base):
+    __tablename__ = 'application_product_segments'
+
+    application_id = Column(Integer, ForeignKey('applications.id'), primary_key=True)
+    product_segment_id = Column(
+        Integer, ForeignKey('product_segments.id'), primary_key=True
+    )
+
+
 class ProductSegment(Base):
     __tablename__ = 'product_segments'
 

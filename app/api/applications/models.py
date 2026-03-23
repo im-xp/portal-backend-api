@@ -131,10 +131,7 @@ class Application(Base):
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
     group = None
 
-    product_segment_id = Column(
-        Integer, ForeignKey('product_segments.id'), nullable=True
-    )
-    product_segment = None
+    product_segments = None
 
     created_by_leader = Column(Boolean, nullable=False, default=False)
 
@@ -235,19 +232,28 @@ class Application(Base):
         )
 
     @property
+    def product_segment_ids(self) -> list[int]:
+        if not self.product_segments:
+            return []
+        return [s.id for s in self.product_segments]
+
+    @property
     def red_flag(self) -> bool:
         return self.citizen.red_flag
 
 
 def setup_relationships():
     from app.api.groups.models import Group
-    from app.api.product_segments.models import ProductSegment
 
     if not hasattr(Application, 'group') or Application.group is None:
         Application.group = relationship('Group', lazy='joined')
 
     if (
-        not hasattr(Application, 'product_segment')
-        or Application.product_segment is None
+        not hasattr(Application, 'product_segments')
+        or Application.product_segments is None
     ):
-        Application.product_segment = relationship('ProductSegment', lazy='joined')
+        Application.product_segments = relationship(
+            'ProductSegment',
+            secondary='application_product_segments',
+            lazy='joined',
+        )

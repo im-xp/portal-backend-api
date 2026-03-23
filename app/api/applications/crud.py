@@ -347,7 +347,7 @@ class CRUDApplication(
                 application.accepted_at = current_time()
 
             # Handle product segment assignment
-            application.product_segment_id = None
+            application.product_segments = []
             popup_city_id = application.popup_city_id
             popup_has_segments = (
                 db.query(ProductSegment)
@@ -356,25 +356,28 @@ class CRUDApplication(
                 is not None
             )
 
-            if obj.segment_slug:
-                segment = product_segment_crud.get_by_slug_and_popup(
-                    db, slug=obj.segment_slug, popup_city_id=popup_city_id
-                )
-                if not segment:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f'Segment "{obj.segment_slug}" not found for this popup city',
+            if obj.segment_slugs:
+                segments = []
+                for slug in obj.segment_slugs:
+                    segment = product_segment_crud.get_by_slug_and_popup(
+                        db, slug=slug, popup_city_id=popup_city_id
                     )
-                application.product_segment_id = segment.id
+                    if not segment:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f'Segment "{slug}" not found for this popup city',
+                        )
+                    segments.append(segment)
+                application.product_segments = segments
             elif popup_has_segments:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail='segment_slug is required for this popup city',
+                    detail='segment_slugs is required for this popup city',
                 )
         else:
             application.discount_assigned = None
             application.accepted_at = None
-            application.product_segment_id = None
+            application.product_segments = []
 
         db.add(application)
         db.commit()

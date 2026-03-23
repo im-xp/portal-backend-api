@@ -127,7 +127,7 @@ class ApplicationUpdate(ApplicationBaseCommon):
 class ApplicationReviewUpdate(BaseModel):
     status: ApplicationReviewStatus
     discount_assigned: Optional[int] = Field(default=None, ge=0, le=100)
-    segment_slug: Optional[str] = None
+    segment_slugs: Optional[List[str]] = None
 
 
 class InternalApplicationCreate(ApplicationBase):
@@ -152,7 +152,7 @@ class Application(InternalApplicationCreate):
     red_flag: Optional[bool] = None
     application_fee_required: Optional[bool] = None
     application_fee_paid: Optional[bool] = None
-    product_segment_id: Optional[int] = None
+    product_segment_ids: Optional[List[int]] = None
 
     model_config = ConfigDict(
         from_attributes=True,
