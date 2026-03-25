@@ -89,6 +89,7 @@ class Application(Base):
     residencies_text = Column(String)
 
     send_note_to_applicant = Column(String)
+    coordinator_notes = Column(String)
 
     timour_review = Column(String)
     janine_review = Column(String)

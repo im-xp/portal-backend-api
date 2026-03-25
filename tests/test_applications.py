@@ -261,6 +261,89 @@ def test_review_application_validates_discount_range(
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
+def test_review_application_coordinator_notes_stays_internal(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'coordinator_notes': 'Needs manual housing follow-up',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert 'coordinator_notes' not in response.json()
+
+    application = db_session.get(Application, application_id)
+    assert application.coordinator_notes == 'Needs manual housing follow-up'
+
+
+def test_review_application_coordinator_notes_patch_semantics(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    first_response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.REJECTED.value,
+            'coordinator_notes': 'Waitlist for next cohort',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert first_response.status_code == status.HTTP_200_OK
+    assert db_session.get(Application, application_id).coordinator_notes == (
+        'Waitlist for next cohort'
+    )
+
+    second_response = client.patch(
+        f'/applications/{application_id}/review',
+        json={'status': ApplicationStatus.REJECTED.value},
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert second_response.status_code == status.HTTP_200_OK
+    assert db_session.get(Application, application_id).coordinator_notes == (
+        'Waitlist for next cohort'
+    )
+    assert 'coordinator_notes' not in second_response.json()
+
+    third_response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.REJECTED.value,
+            'coordinator_notes': None,
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert third_response.status_code == status.HTTP_200_OK
+    assert db_session.get(Application, application_id).coordinator_notes is None
+    assert 'coordinator_notes' not in third_response.json()
+
+
 def test_review_application_sends_acceptance_email_once(
     client,
     auth_headers,

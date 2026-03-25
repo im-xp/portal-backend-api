@@ -128,6 +128,7 @@ class ApplicationReviewUpdate(BaseModel):
     status: ApplicationReviewStatus
     discount_assigned: Optional[int] = Field(default=None, ge=0, le=100)
     segment_slugs: Optional[List[str]] = None
+    coordinator_notes: Optional[str] = None
 
 
 class InternalApplicationCreate(ApplicationBase):

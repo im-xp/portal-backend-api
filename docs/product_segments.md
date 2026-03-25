@@ -49,12 +49,14 @@ PATCH /applications/{application_id}/review
 {
   "status": "accepted",
   "discount_assigned": 70,
-  "segment_slugs": ["long-build", "vip"]
+  "segment_slugs": ["long-build", "vip"],
+  "coordinator_notes": "Approved after internal housing review"
 }
 ```
 
 **Rules:**
 - `segment_slugs` is only used when `status` is `"accepted"`. It is ignored on rejection.
+- `coordinator_notes` is optional, persists on the application record, and stays internal-only (it is not returned in application responses).
 - If the popup city has segments configured, `segment_slugs` is **required** when accepting (at least one). Omitting it returns `400`.
 - If the popup city has no segments, omit `segment_slugs` (or set to `null`). Behavior is unchanged from before.
 - Any invalid slug in the list returns `400`.

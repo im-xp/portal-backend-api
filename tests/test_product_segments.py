@@ -205,6 +205,48 @@ def test_review_accept_with_multiple_segments(
     assert set(data['product_segment_ids']) == {seg1.id, seg2.id}
 
 
+def test_review_accept_with_segments_and_coordinator_notes(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    seg = _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slugs': ['vip'],
+            'coordinator_notes': 'Offer VIP intro on arrival',
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['product_segment_ids'] == [seg.id]
+    assert 'coordinator_notes' not in data
+
+    application = db_session.get(Application, app_id)
+    assert application.coordinator_notes == 'Offer VIP intro on arrival'
+
+
 def test_review_accept_requires_segments_when_popup_has_segments(
     client,
     auth_headers,

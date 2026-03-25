@@ -337,6 +337,10 @@ class CRUDApplication(
         obj: schemas.ApplicationReviewUpdate,
     ) -> models.Application:
         application = self.get(db, id, SYSTEM_TOKEN)
+
+        if 'coordinator_notes' in obj.model_fields_set:
+            application.coordinator_notes = obj.coordinator_notes
+
         application.status = obj.status.value
 
         if obj.status == schemas.ApplicationReviewStatus.ACCEPTED:
