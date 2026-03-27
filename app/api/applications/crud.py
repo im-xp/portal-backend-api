@@ -144,7 +144,7 @@ def _is_ticketholder(db: Session, citizen_id: int) -> bool:
 
 def _build_review_email_params(db: Session, application: models.Application) -> dict:
     params = {
-        'first_name': application.first_name,
+        'first_name': application.first_name or (application.custom_data or {}).get('full_name') or 'there',
         'discount_assigned': application.discount_assigned,
     }
 
