@@ -1,0 +1,42 @@
+SEGMENT_EMAIL_CONFIG = {
+    'long-build': {
+        'arrival_date': 'Sunday, July 26th',
+        'latest_arrival_date': 'Saturday, July 25th',
+        'work_requirement': '2 weeks, Full workdays',
+        'accommodation': 'Preset Tent for duration of work + festival',
+        'meals': 'Catered meals for duration of work and event',
+        'travel': 'Roundtrip shuttle from KEF',
+    },
+    '10-day-build': {
+        'arrival_date': 'Thursday, July 30th',
+        'latest_arrival_date': 'Wednesday, July 29th',
+        'work_requirement': '10 days, Full workdays',
+        'accommodation': 'Preset Tent for duration of work + festival',
+        'meals': 'Catered meals on workdays only & at-cost meal plan during event',
+        'travel': 'Roundtrip shuttle from KEF',
+    },
+    'short-build': {
+        'arrival_date': 'Sunday, August 2nd',
+        'latest_arrival_date': 'Saturday, August 1st',
+        'work_requirement': '1 week, Full workdays',
+        'accommodation': 'Preset Tent for duration of work + festival',
+        'meals': 'Catered meals on workdays only & at-cost meal plan during event',
+        'travel': 'Roundtrip shuttle from KEF',
+    },
+    'event': {
+        'arrival_date': 'Sunday, August 9th',
+        'latest_arrival_date': 'Saturday, August 8th',
+        'work_requirement': '(6) 5-hour shifts',
+        'accommodation': 'Bring your own, Discounted Accommodations',
+        'meals': '(1) meal per shift',
+        'travel': 'Roundtrip shuttle from KEF',
+    },
+    'post-event': {
+        'arrival_date': 'August 9-11th',
+        'latest_arrival_date': 'Friday, August 8th',
+        'work_requirement': '3 days, Full workdays',
+        'accommodation': 'Preset tent for duration of work',
+        'meals': 'Catered meals on workdays only',
+        'travel': 'Roundtrip shuttle from KEF',
+    },
+}

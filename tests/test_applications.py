@@ -344,6 +344,212 @@ def test_review_application_coordinator_notes_patch_semantics(
     assert 'coordinator_notes' not in third_response.json()
 
 
+def _create_segment(db_session, popup_city_id, name, slug):
+    from app.api.product_segments.models import ProductSegment
+
+    segment = ProductSegment(
+        name=name,
+        slug=slug,
+        popup_city_id=popup_city_id,
+    )
+    db_session.add(segment)
+    db_session.commit()
+    return segment
+
+
+def test_review_application_derives_email_params_from_segments(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'Short Build',
+        'short-build',
+    )
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'Event',
+        'event',
+    )
+
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slugs': ['short-build', 'event'],
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    send_kwargs = mock_send_mail.call_args.kwargs
+    params = send_kwargs['params']
+
+    assert params['first_name'] == 'Test'
+    assert params['approved_phase_count'] == 2
+    assert params['approved_phase_names'] == 'Short Build, Event'
+    assert params['has_multiple_approved_phases'] is True
+    assert params['has_single_approved_phase'] is False
+    assert params['approved_phases'][0]['name'] == 'Short Build'
+    assert params['approved_phases'][0]['work_requirement'] == '1 week, Full workdays'
+    assert params['approved_phases'][0]['arrival_date'] == 'Sunday, August 2nd'
+    assert params['approved_phases'][0]['latest_arrival_date'] == 'Saturday, August 1st'
+    assert params['requires_refundable_deposit'] is True
+    assert params['deposit_waived'] is False
+    assert params['ticket_holder_credit'] is False
+    assert params['deposit_amount'] == 600
+
+
+def test_review_application_deposit_waived_when_full_discount(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'Short Build',
+        'short-build',
+    )
+
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 100,
+            'segment_slugs': ['short-build'],
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    params = mock_send_mail.call_args.kwargs['params']
+
+    assert params['deposit_waived'] is True
+    assert params['requires_refundable_deposit'] is False
+    assert params['ticket_holder_credit'] is False
+    assert params['has_single_approved_phase'] is True
+    assert params['single_phase']['name'] == 'Short Build'
+
+
+def test_review_application_ticketholder_credit(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    from app.api.attendees.models import Attendee, AttendeeProduct
+    from app.api.popup_city.models import PopUpCity
+    from app.api.products.models import Product
+
+    # Create the iceland-eclipse-preapproved popup and a product in it
+    preapproved_popup = PopUpCity(
+        name='Iceland Eclipse Pre-Approved',
+        slug='iceland-eclipse-preapproved',
+        prefix='ICEPRE',
+        location='Iceland',
+        visible_in_portal=True,
+        clickable_in_portal=True,
+        requires_approval=False,
+    )
+    db_session.add(preapproved_popup)
+    db_session.flush()
+
+    preapproved_product = Product(
+        name='Iceland Ticket',
+        slug='iceland-ticket',
+        price=1000.0,
+        popup_city_id=preapproved_popup.id,
+        category='ticket',
+        is_active=True,
+    )
+    db_session.add(preapproved_product)
+    db_session.flush()
+
+    # Create an application + attendee + purchase in the preapproved popup for this citizen
+    preapproved_app = Application(
+        first_name='Test',
+        last_name='User',
+        email='test@example.com',
+        citizen_id=test_application['citizen_id'],
+        popup_city_id=preapproved_popup.id,
+        _status='accepted',
+    )
+    db_session.add(preapproved_app)
+    db_session.flush()
+
+    preapproved_attendee = Attendee(
+        name='Test User',
+        category='main',
+        email='test@example.com',
+        application_id=preapproved_app.id,
+        check_in_code='ICEPRE1234',
+    )
+    db_session.add(preapproved_attendee)
+    db_session.flush()
+
+    db_session.add(
+        AttendeeProduct(
+            attendee_id=preapproved_attendee.id,
+            product_id=preapproved_product.id,
+            quantity=1,
+        )
+    )
+    db_session.commit()
+
+    # Now create the segment in the main popup
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'Short Build',
+        'short-build',
+    )
+
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slugs': ['short-build'],
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    params = mock_send_mail.call_args.kwargs['params']
+
+    assert params['ticket_holder_credit'] is True
+    assert params['deposit_waived'] is False
+    assert params['requires_refundable_deposit'] is False
+
+
 def test_review_application_sends_acceptance_email_once(
     client,
     auth_headers,

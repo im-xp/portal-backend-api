@@ -22,9 +22,11 @@ from app.api.popup_city.models import PopUpCity
 from app.api.product_segments.crud import product_segment as product_segment_crud
 from app.api.product_segments.models import ProductSegment
 from app.api.products.models import Product
+from app.core.config import get_popup_frontend_url
 from app.core.logger import logger
 from app.core.security import SYSTEM_TOKEN, TokenData
 from app.core.utils import current_time
+from app.data.segment_email_config import SEGMENT_EMAIL_CONFIG
 
 
 def _generate_attendees_directory_csv(attendees: list[dict]) -> str:
@@ -124,6 +126,69 @@ def _send_application_received_mail(application: models.Application):
     )
 
 
+def _is_ticketholder(db: Session, citizen_id: int) -> bool:
+    """Check if citizen has a product purchase in the iceland-eclipse-preapproved popup."""
+    return (
+        db.query(AttendeeProduct)
+        .join(Attendee, Attendee.id == AttendeeProduct.attendee_id)
+        .join(models.Application, models.Application.id == Attendee.application_id)
+        .join(PopUpCity, PopUpCity.id == models.Application.popup_city_id)
+        .filter(
+            models.Application.citizen_id == citizen_id,
+            PopUpCity.slug == 'iceland-eclipse-preapproved',
+        )
+        .first()
+        is not None
+    )
+
+
+def _build_review_email_params(db: Session, application: models.Application) -> dict:
+    params = {
+        'first_name': application.first_name,
+        'discount_assigned': application.discount_assigned,
+    }
+
+    segments = application.product_segments
+    if not segments:
+        return params
+
+    phases = []
+    for segment in segments:
+        config = SEGMENT_EMAIL_CONFIG.get(segment.slug, {})
+        phase = {'name': segment.name, **config}
+        phases.append(phase)
+
+    phase_names = [p['name'] for p in phases]
+    params['approved_phases'] = phases
+    params['approved_phase_count'] = len(phases)
+    params['approved_phase_names'] = ', '.join(phase_names)
+    params['has_single_approved_phase'] = len(phases) == 1
+    params['has_multiple_approved_phases'] = len(phases) > 1
+    if len(phases) == 1:
+        params['single_phase'] = phases[0]
+
+    # Derive deposit mode
+    discount = application.discount_assigned
+    if discount is not None and discount >= 100:
+        params['deposit_waived'] = True
+        params['requires_refundable_deposit'] = False
+        params['ticket_holder_credit'] = False
+    elif _is_ticketholder(db, application.citizen_id):
+        params['ticket_holder_credit'] = True
+        params['deposit_waived'] = False
+        params['requires_refundable_deposit'] = False
+    else:
+        params['requires_refundable_deposit'] = True
+        params['deposit_waived'] = False
+        params['ticket_holder_credit'] = False
+
+    params['deposit_amount'] = 600
+    popup_slug = application.popup_city.slug if application.popup_city else None
+    params['confirmation_form_link'] = get_popup_frontend_url(popup_slug)
+
+    return params
+
+
 def _send_review_decision_mail(db: Session, application: models.Application) -> None:
     if application.status == schemas.ApplicationStatus.ACCEPTED:
         event = EmailEvent.APPLICATION_APPROVED.value
@@ -145,10 +210,7 @@ def _send_review_decision_mail(db: Session, application: models.Application) -> 
         event=event,
         db=db,
         popup_city=application.popup_city,
-        params={
-            'first_name': application.first_name,
-            'discount_assigned': application.discount_assigned,
-        },
+        params=_build_review_email_params(db, application),
         entity_type='application',
         entity_id=application.id,
     )
@@ -362,7 +424,11 @@ class CRUDApplication(
 
             if obj.segment_slugs:
                 segments = []
+                seen_slugs = set()
                 for slug in obj.segment_slugs:
+                    if slug in seen_slugs:
+                        continue
+                    seen_slugs.add(slug)
                     segment = product_segment_crud.get_by_slug_and_popup(
                         db, slug=slug, popup_city_id=popup_city_id
                     )
@@ -386,7 +452,7 @@ class CRUDApplication(
         db.add(application)
         db.commit()
         db.refresh(application)
-        # _send_review_decision_mail(db, application)
+        _send_review_decision_mail(db, application)
         return application
 
     def find(

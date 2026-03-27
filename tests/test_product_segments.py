@@ -374,6 +374,42 @@ def test_review_accept_with_one_valid_one_invalid_slug(
     assert 'not found' in response.json()['detail']
 
 
+def test_review_accept_with_duplicate_segment_slugs_deduplicates_cleanly(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    test_products,
+    mock_email_template,
+    mock_send_mail,
+):
+    seg = _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'VIP',
+        'vip',
+        [test_products[0].id],
+    )
+
+    create_resp = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    app_id = create_resp.json()['id']
+
+    response = client.patch(
+        f'/applications/{app_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 0,
+            'segment_slugs': ['vip', 'vip'],
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()['product_segment_ids'] == [seg.id]
+
+
 def test_review_reject_ignores_segment_slugs(
     client,
     auth_headers,
