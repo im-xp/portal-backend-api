@@ -190,12 +190,10 @@ def _build_review_email_params(db: Session, application: models.Application) -> 
 
 
 def _send_review_decision_mail(db: Session, application: models.Application) -> None:
-    if application.status == schemas.ApplicationStatus.ACCEPTED:
-        event = EmailEvent.APPLICATION_APPROVED.value
-    elif application.status == schemas.ApplicationStatus.REJECTED:
-        event = EmailEvent.APPLICATION_REJECTED.value
-    else:
+    if application.status != schemas.ApplicationStatus.ACCEPTED:
         return
+
+    event = EmailEvent.APPLICATION_APPROVED.value
 
     if email_log.has_sent_event(
         db,
