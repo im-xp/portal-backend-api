@@ -398,18 +398,16 @@ def test_review_application_derives_email_params_from_segments(
     params = send_kwargs['params']
 
     assert params['first_name'] == 'Test'
-    assert params['approved_phase_count'] == 2
-    assert params['approved_phase_names'] == 'Short Build, Event'
-    assert params['has_multiple_approved_phases'] is True
-    assert params['has_single_approved_phase'] is False
-    assert params['approved_phases'][0]['name'] == 'Short Build'
-    assert params['approved_phases'][0]['work_requirement'] == '1 week, Full workdays'
-    assert params['approved_phases'][0]['arrival_date'] == 'Sunday, August 2nd'
-    assert params['approved_phases'][0]['latest_arrival_date'] == 'Saturday, August 1st'
-    assert params['requires_refundable_deposit'] is True
-    assert params['deposit_waived'] is False
-    assert params['ticket_holder_credit'] is False
-    assert params['deposit_amount'] == 600
+
+    # Multiple phases: section is an object with approved_phase_names
+    multi = params['has_multiple_approved_phases']
+    assert multi['approved_phase_names'] == 'Short Build, Event'
+    assert 'has_single_approved_phase' not in params
+
+    # Deposit: requires_refundable_deposit is an object with deposit_amount
+    assert params['requires_refundable_deposit'] == {'deposit_amount': 600}
+    assert 'deposit_waived' not in params
+    assert 'ticket_holder_credit' not in params
 
 
 def test_review_application_deposit_waived_when_full_discount(
@@ -445,11 +443,13 @@ def test_review_application_deposit_waived_when_full_discount(
     assert response.status_code == status.HTTP_200_OK
     params = mock_send_mail.call_args.kwargs['params']
 
-    assert params['deposit_waived'] is True
-    assert params['requires_refundable_deposit'] is False
-    assert params['ticket_holder_credit'] is False
-    assert params['has_single_approved_phase'] is True
-    assert params['single_phase']['name'] == 'Short Build'
+    assert params['deposit_waived'] == {'deposit_amount': 600}
+    assert 'requires_refundable_deposit' not in params
+    assert 'ticket_holder_credit' not in params
+
+    single = params['has_single_approved_phase']
+    assert single['single_phase']['name'] == 'Short Build'
+    assert 'has_multiple_approved_phases' not in params
 
 
 def test_review_application_ticketholder_credit(
@@ -545,9 +545,9 @@ def test_review_application_ticketholder_credit(
     assert response.status_code == status.HTTP_200_OK
     params = mock_send_mail.call_args.kwargs['params']
 
-    assert params['ticket_holder_credit'] is True
-    assert params['deposit_waived'] is False
-    assert params['requires_refundable_deposit'] is False
+    assert params['ticket_holder_credit'] == {'deposit_amount': 600}
+    assert 'deposit_waived' not in params
+    assert 'requires_refundable_deposit' not in params
 
 
 def test_review_application_sends_acceptance_email_once(
