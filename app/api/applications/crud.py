@@ -158,31 +158,26 @@ def _build_review_email_params(db: Session, application: models.Application) -> 
         phase = {'name': segment.name, **config}
         phases.append(phase)
 
-    phase_names = [p['name'] for p in phases]
-    params['approved_phases'] = phases
-    params['approved_phase_count'] = len(phases)
-    params['approved_phase_names'] = ', '.join(phase_names)
-    params['has_single_approved_phase'] = len(phases) == 1
-    params['has_multiple_approved_phases'] = len(phases) > 1
+    # Phase sections — use objects (not booleans) so variables inside
+    # Mustache sections resolve correctly in Postmark's Mustachio engine.
+    phase_names = ', '.join(p['name'] for p in phases)
     if len(phases) == 1:
-        params['single_phase'] = phases[0]
+        params['has_single_approved_phase'] = {'single_phase': phases[0]}
+    else:
+        params['has_multiple_approved_phases'] = {
+            'approved_phase_names': phase_names,
+        }
 
-    # Derive deposit mode
+    # Deposit section — only set the active variant as an object with deposit_amount
+    deposit_ctx = {'deposit_amount': 600}
     discount = application.discount_assigned
     if discount is not None and discount >= 100:
-        params['deposit_waived'] = True
-        params['requires_refundable_deposit'] = False
-        params['ticket_holder_credit'] = False
+        params['deposit_waived'] = deposit_ctx
     elif _is_ticketholder(db, application.citizen_id):
-        params['ticket_holder_credit'] = True
-        params['deposit_waived'] = False
-        params['requires_refundable_deposit'] = False
+        params['ticket_holder_credit'] = deposit_ctx
     else:
-        params['requires_refundable_deposit'] = True
-        params['deposit_waived'] = False
-        params['ticket_holder_credit'] = False
+        params['requires_refundable_deposit'] = deposit_ctx
 
-    params['deposit_amount'] = 600
     popup_slug = application.popup_city.slug if application.popup_city else None
     params['confirmation_form_link'] = get_popup_frontend_url(popup_slug)
 
