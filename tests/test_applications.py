@@ -587,7 +587,7 @@ def test_review_application_sends_acceptance_email_once(
     assert len(email_logs) == 1
 
 
-def test_review_application_sends_rejection_email_once(
+def test_review_application_rejection_does_not_send_email(
     client,
     auth_headers,
     test_application,
@@ -600,59 +600,14 @@ def test_review_application_sends_rejection_email_once(
     )
     application_id = create_response.json()['id']
 
-    for _ in range(2):
-        response = client.patch(
-            f'/applications/{application_id}/review',
-            json={'status': ApplicationStatus.REJECTED.value, 'discount_assigned': 50},
-            headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
-        )
-        assert response.status_code == status.HTTP_200_OK
-
-    assert mock_send_mail.call_count == 1
-    email_logs = (
-        db_session.query(EmailLog)
-        .filter(
-            EmailLog.entity_type == 'application',
-            EmailLog.entity_id == application_id,
-            EmailLog.event == EmailEvent.APPLICATION_REJECTED.value,
-        )
-        .all()
-    )
-    assert len(email_logs) == 1
-
-
-def test_review_application_skips_missing_template_and_logs_failure(
-    client,
-    auth_headers,
-    test_application,
-    db_session,
-    mock_send_mail,
-):
-    create_response = client.post(
-        '/applications/', json=test_application, headers=auth_headers
-    )
-    application_id = create_response.json()['id']
-
     response = client.patch(
         f'/applications/{application_id}/review',
-        json={'status': ApplicationStatus.REJECTED.value, 'discount_assigned': None},
+        json={'status': ApplicationStatus.REJECTED.value},
         headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
     )
 
     assert response.status_code == status.HTTP_200_OK
     assert mock_send_mail.call_count == 0
-
-    email_log = (
-        db_session.query(EmailLog)
-        .filter(
-            EmailLog.entity_type == 'application',
-            EmailLog.entity_id == application_id,
-            EmailLog.event == EmailEvent.APPLICATION_REJECTED.value,
-        )
-        .one()
-    )
-    assert email_log.status == 'failed'
-    assert 'No template found for event' in email_log.error_message
 
 
 def test_create_attendee_success(client, auth_headers, test_application):
