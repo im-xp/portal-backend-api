@@ -2,15 +2,20 @@
 Quick test: send a test identify + Order Completed to Segment.
 Verify events appear in Sources > EdgeOS Portal > Debugger.
 
-Usage: python3 scripts/test_segment.py
+Usage: SEGMENT_WRITE_KEY=... python3 scripts/test_segment.py
 """
 
 import base64
 import json
+import os
+import sys
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 
-SEGMENT_WRITE_KEY = 'rgLWt318zoWFuHg78qRdEuEoWeHWHGu1'
+SEGMENT_WRITE_KEY = os.environ.get('SEGMENT_WRITE_KEY', '')
+if not SEGMENT_WRITE_KEY:
+    print('Error: SEGMENT_WRITE_KEY env var is required')
+    sys.exit(1)
 SEGMENT_API_URL = 'https://api.segment.io/v1'
 TEST_EMAIL = 'segment-test@icelandeclipse.com'
 
