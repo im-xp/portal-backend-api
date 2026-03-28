@@ -13,7 +13,7 @@ from app.api.email_logs.schemas import EmailAttachment, EmailEvent
 from app.api.payments import schemas
 from app.api.payments.schemas import PaymentSource
 from app.api.products.models import Product
-from app.core import models, payments_utils
+from app.core import models, payments_utils, segment
 from app.core.invoice import generate_invoice_pdf
 from app.core.logger import logger
 from app.core.security import TokenData
@@ -133,6 +133,10 @@ class CRUDPayment(
 
         db.commit()
         db.refresh(db_payment)
+
+        if db_payment.status == 'approved' and not db_payment.is_application_fee:
+            self._track_order_completed(db_payment)
+
         return db_payment
 
     def create_application_fee(
@@ -388,7 +392,30 @@ class CRUDPayment(
 
         logger.info('Payment %s approved', payment.id)
         db.commit()
+
+        self._track_order_completed(payment)
+
         return updated_payment
+
+    def _track_order_completed(self, payment: models.Payment) -> None:
+        app = payment.application
+        user_id = app.email.lower()
+        products = []
+        if payment.products_snapshot:
+            for ps in payment.products_snapshot:
+                products.append({
+                    'product_id': ps.product_id,
+                    'name': ps.product_name,
+                    'price': ps.product_price or 0,
+                    'quantity': ps.quantity or 1,
+                })
+
+        segment.track(user_id, 'Order Completed', {
+            'order_id': payment.id,
+            'total': payment.amount or 0,
+            'currency': payment.currency or 'USD',
+            'products': products,
+        })
 
 
 payment = CRUDPayment(models.Payment)
