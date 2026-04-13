@@ -35,6 +35,7 @@ class UserSettableStatus(str, Enum):
 class ApplicationReviewStatus(str, Enum):
     ACCEPTED = ApplicationStatus.ACCEPTED.value
     REJECTED = ApplicationStatus.REJECTED.value
+    WITHDRAWN = ApplicationStatus.WITHDRAWN.value
 
 
 class ApplicationFilter(BaseModel):

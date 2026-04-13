@@ -144,7 +144,9 @@ def _is_ticketholder(db: Session, citizen_id: int) -> bool:
 
 def _build_review_email_params(db: Session, application: models.Application) -> dict:
     params = {
-        'first_name': application.first_name or (application.custom_data or {}).get('full_name') or 'there',
+        'first_name': application.first_name
+        or (application.custom_data or {}).get('full_name')
+        or 'there',
         'discount_assigned': application.discount_assigned,
     }
 
@@ -445,7 +447,10 @@ class CRUDApplication(
         db.add(application)
         db.commit()
         db.refresh(application)
-        _send_review_decision_mail(db, application)
+
+        if obj.status != schemas.ApplicationReviewStatus.WITHDRAWN:
+            _send_review_decision_mail(db, application)
+
         return application
 
     def find(
