@@ -151,7 +151,7 @@ def generate_invoice_pdf(
         Paragraph('IMXP Events LLC', styles['Body']),
         Paragraph('411 Brazos St, Ste 103', styles['Body']),
         Paragraph('Austin TX 78701', styles['Body']),
-        Paragraph('Email: theportal@icelandeclipse.com', styles['Body']),
+        Paragraph('Email: volunteers@icelandeclipse.com', styles['Body']),
     ]
     right = [
         Paragraph(f'Date: {format_date(payment.created_at)}', styles['Right']),
