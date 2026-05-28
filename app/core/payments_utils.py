@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -44,17 +44,27 @@ def _classify_products(
     requested_products: List[schemas.PaymentProduct],
     valid_products: List[Product],
     already_patreon: bool,
+    applies_to: Optional[str] = None,
 ) -> Tuple[List[float], float, float, float, float]:
     """
     Classify requested products and compute category amounts.
+
+    Args:
+        applies_to: Coupon scope. 'pass' (default) treats lodging as
+            non-discountable. 'lodging' or 'all' routes lodging into the
+            discountable bucket so a coupon's percentage applies to it.
+            When None (no coupon under consideration), behaves like 'pass'.
 
     Returns:
         unit_prices: pre-discount unit price per requested product (for the reference)
         discountable_amount, non_discountable_amount, supporter_amount, patreon_amount
 
-    Discounts only apply to regular passes (e.g., Portal Entry Pass).
-    Non-discountable includes: lodging, donations, portal-patron (premium pass)
+    Discounts apply to regular passes by default. Coupons may extend that to
+    lodging via the `applies_to` field. portal-patron remains non-discountable
+    in all cases. Donations and the supporter/patreon categories are never
+    discounted.
     """
+    lodging_is_discountable = applies_to in ('lodging', 'all')
     product_map = {p.id: p for p in valid_products}
 
     # Pre-scan: which attendees are buying patreon in this request?
@@ -103,7 +113,13 @@ def _classify_products(
         elif (
             product_model.category == 'lodging' or product_model.slug == 'portal-patron'
         ):
-            non_discountable_amount += unit_price * quantity
+            if (
+                product_model.category == 'lodging'
+                and lodging_is_discountable
+            ):
+                discountable_amount += unit_price * quantity
+            else:
+                non_discountable_amount += unit_price * quantity
             unit_prices.append(unit_price)
         else:
             discountable_amount += unit_price * quantity
@@ -292,6 +308,9 @@ def _apply_discounts(
     non_discountable_amount: float,
     supporter_amount: float,
     patreon_amount: float,
+    requested_products: Optional[List[schemas.PaymentProduct]] = None,
+    valid_products: Optional[List[Product]] = None,
+    already_patreon: bool = False,
 ) -> PaymentPreview:
     discount_assigned = application.discount_assigned or 0
     edit_passes = obj.edit_passes or False
@@ -342,11 +361,40 @@ def _apply_discounts(
             code=obj.coupon_code,
             popup_city_id=application.popup_city_id,  # ty: ignore[invalid-argument-type]
         )
+
+        # Re-classify products with this coupon's applies_to so lodging routes
+        # into the discountable bucket when applies_to is 'lodging' or 'all'.
+        # Falls back to the pre-computed amounts when caller did not pass the
+        # product context (defensive: keeps the function callable in old shape).
+        coupon_applies_to = getattr(coupon_code, 'applies_to', None) or 'pass'
+        if (
+            coupon_applies_to in ('lodging', 'all')
+            and requested_products is not None
+            and valid_products is not None
+        ):
+            (
+                _unit_prices,
+                coupon_discountable,
+                coupon_non_discountable,
+                coupon_supporter,
+                coupon_patreon,
+            ) = _classify_products(
+                requested_products,
+                valid_products,
+                already_patreon,
+                applies_to=coupon_applies_to,
+            )
+        else:
+            coupon_discountable = discountable_amount
+            coupon_non_discountable = non_discountable_amount
+            coupon_supporter = supporter_amount
+            coupon_patreon = patreon_amount
+
         discounted_amount = _calculate_price(
-            discountable_amount=discountable_amount,
-            non_discountable_amount=non_discountable_amount,
-            supporter_amount=supporter_amount,
-            patreon_amount=patreon_amount,
+            discountable_amount=coupon_discountable,
+            non_discountable_amount=coupon_non_discountable,
+            supporter_amount=coupon_supporter,
+            patreon_amount=coupon_patreon,
             discount_value=coupon_code.discount_value,
             application=application,
             edit_passes=edit_passes,
@@ -400,6 +448,9 @@ def _prepare_payment_response(
         non_discountable_amount,
         supporter_amount,
         patreon_amount,
+        requested_products=obj.products,
+        valid_products=valid_products,
+        already_patreon=already_patreon,
     )
 
     return response, application, valid_products, unit_prices
