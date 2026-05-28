@@ -1,15 +1,19 @@
 """Regression tests for coupon `applies_to` field at /payments/preview.
 
 Bug context: coupon_codes have an `applies_to` column with values 'pass',
-'lodging', or 'all'. The frontend (portal-frontend TotalStrategy.ts) honors
-this field when computing the displayed discount. The backend, however,
-hard-codes lodging as non-discountable in `_classify_products`, so the
-amount sent to Stripe at checkout was always the un-discounted lodging
-price even when the coupon's `applies_to` said otherwise. The result: the
-displayed price on EdgeOS looked discounted, but the charge wasn't.
+'lodging', or 'all'. Pre-fix, the backend ignored the field entirely and
+treated lodging as non-discountable in all cases, so a coupon could not
+actually discount lodging at checkout even when configured to.
 
-These tests pin the backend behavior at /payments/preview so the discounted
-amount returned matches what `applies_to` says it should be.
+These tests pin the backend behavior at /payments/preview under strict
+scope semantics:
+
+  - 'pass'    : only passes discount; lodging full price (legacy default)
+  - 'lodging' : only lodging discounts; passes full price
+  - 'all'     : both passes and lodging discount
+
+portal-patron, donations, and the patreon/supporter buckets are never
+discounted regardless of scope.
 """
 
 from datetime import timedelta
@@ -143,7 +147,7 @@ def test_preview_applies_to_pass_only_discounts_pass(
     assert data['discount_value'] == pytest.approx(10.0)
 
 
-def test_preview_applies_to_lodging_discounts_pass_and_lodging(
+def test_preview_applies_to_lodging_discounts_lodging_only(
     client,
     auth_headers,
     db_session,
@@ -151,17 +155,10 @@ def test_preview_applies_to_lodging_discounts_pass_and_lodging(
     pass_and_lodging_products,
     accepted_application,
 ):
-    """applies_to='lodging': lodging joins the discountable bucket; passes were
-    already discountable. Both discount.
-
-    This mirrors the frontend (portal-frontend/src/strategies/TotalStrategy.ts)
-    where `applies_to` only controls whether lodging is INCLUDED in the
-    discountable filter — it never excludes passes. The bug being fixed is
-    that the backend ignored applies_to entirely; the goal is to make the
-    backend match what EdgeOS already displays to users.
+    """applies_to='lodging': only lodging discounts. The pass stays full price.
 
     Cart = pass $100 + lodging $200, 10% coupon.
-    Expected amount = 90 + 180 = 270 (same as applies_to='all' for this cart).
+    Expected amount = 100 + 180 = 280.
     """
     pass_product, lodging_product = pass_and_lodging_products
     application, attendee = accepted_application
@@ -178,7 +175,7 @@ def test_preview_applies_to_lodging_discounts_pass_and_lodging(
     response = client.post('/payments/preview', json=payload, headers=auth_headers)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert data['amount'] == pytest.approx(270.0)
+    assert data['amount'] == pytest.approx(280.0)
     assert data['original_amount'] == pytest.approx(300.0)
     assert data['coupon_code'] == coupon.code
 
@@ -216,7 +213,7 @@ def test_preview_applies_to_all_discounts_everything(
     assert data['coupon_code'] == coupon.code
 
 
-def test_preview_applies_to_lodging_no_lodging_in_cart_still_discounts_pass(
+def test_preview_applies_to_lodging_no_lodging_in_cart_no_discount(
     client,
     auth_headers,
     db_session,
@@ -224,14 +221,12 @@ def test_preview_applies_to_lodging_no_lodging_in_cart_still_discounts_pass(
     pass_and_lodging_products,
     accepted_application,
 ):
-    """applies_to='lodging' with only a pass in cart.
-
-    Per frontend semantics (TotalStrategy.ts) `applies_to` only controls
-    whether lodging is included — passes are always discountable. So a
-    lodging-scoped coupon still discounts a pass when no lodging is present.
+    """applies_to='lodging' with only a pass in cart: nothing in scope, no
+    discount applied. The coupon is silently inert (response.amount equals
+    the un-discounted total, no coupon code stamped on the response).
 
     Cart = pass $100, 10% lodging-scoped coupon.
-    Expected amount = 90.
+    Expected amount = 100.
     """
     pass_product, _ = pass_and_lodging_products
     application, attendee = accepted_application
@@ -247,6 +242,39 @@ def test_preview_applies_to_lodging_no_lodging_in_cart_still_discounts_pass(
     response = client.post('/payments/preview', json=payload, headers=auth_headers)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert data['amount'] == pytest.approx(90.0)
+    assert data['amount'] == pytest.approx(100.0)
     assert data['original_amount'] == pytest.approx(100.0)
+    # Coupon was out of scope, so it does not get stamped on the response.
+    assert data.get('coupon_code') is None
+
+
+def test_preview_applies_to_lodging_lodging_only_cart_discounts_lodging(
+    client,
+    auth_headers,
+    db_session,
+    test_popup_city,
+    pass_and_lodging_products,
+    accepted_application,
+):
+    """applies_to='lodging' with only lodging in cart: lodging discounts.
+
+    Cart = lodging $200, 10% lodging-scoped coupon.
+    Expected amount = 180.
+    """
+    _, lodging_product = pass_and_lodging_products
+    application, attendee = accepted_application
+    coupon = _make_coupon(db_session, test_popup_city.id, applies_to='lodging')
+
+    payload = {
+        'application_id': application.id,
+        'coupon_code': coupon.code,
+        'products': [
+            {'product_id': lodging_product.id, 'attendee_id': attendee.id, 'quantity': 1},
+        ],
+    }
+    response = client.post('/payments/preview', json=payload, headers=auth_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data['amount'] == pytest.approx(180.0)
+    assert data['original_amount'] == pytest.approx(200.0)
     assert data['coupon_code'] == coupon.code

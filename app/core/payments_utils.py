@@ -50,21 +50,21 @@ def _classify_products(
     Classify requested products and compute category amounts.
 
     Args:
-        applies_to: Coupon scope. 'pass' (default) treats lodging as
-            non-discountable. 'lodging' or 'all' routes lodging into the
-            discountable bucket so a coupon's percentage applies to it.
-            When None (no coupon under consideration), behaves like 'pass'.
+        applies_to: Coupon scope, mutually exclusive:
+            - 'pass' (default): regular passes are discountable; lodging is not.
+            - 'lodging': only lodging is discountable; passes are not.
+            - 'all': both passes and lodging are discountable.
+            None behaves like 'pass'.
 
     Returns:
         unit_prices: pre-discount unit price per requested product (for the reference)
         discountable_amount, non_discountable_amount, supporter_amount, patreon_amount
 
-    Discounts apply to regular passes by default. Coupons may extend that to
-    lodging via the `applies_to` field. portal-patron remains non-discountable
-    in all cases. Donations and the supporter/patreon categories are never
-    discounted.
+    portal-patron is never discountable. Donations and the supporter/patreon
+    categories are never discounted.
     """
     lodging_is_discountable = applies_to in ('lodging', 'all')
+    passes_are_discountable = applies_to != 'lodging'
     product_map = {p.id: p for p in valid_products}
 
     # Pre-scan: which attendees are buying patreon in this request?
@@ -122,7 +122,10 @@ def _classify_products(
                 non_discountable_amount += unit_price * quantity
             unit_prices.append(unit_price)
         else:
-            discountable_amount += unit_price * quantity
+            if passes_are_discountable:
+                discountable_amount += unit_price * quantity
+            else:
+                non_discountable_amount += unit_price * quantity
             unit_prices.append(unit_price)
 
     logger.info('Discountable amount: %s', discountable_amount)
