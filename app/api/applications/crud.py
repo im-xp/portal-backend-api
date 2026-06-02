@@ -142,6 +142,31 @@ def _is_ticketholder(db: Session, citizen_id: int) -> bool:
     )
 
 
+def _deposit_base_amount(application: models.Application) -> int:
+    """Refundable deposit before any discount, taken from the approved segments'
+    product price.
+
+    All volunteer phases are priced equally; if they ever diverge we use the
+    highest so the email never understates the deposit. Raises when no priced
+    product is attached, since the deposit amount must always come from a product.
+    """
+    prices = {
+        int(product.price)
+        for segment in (application.product_segments or [])
+        for product in (segment.products or [])
+        if product.price is not None
+    }
+    if not prices:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                f'Cannot determine deposit amount for application {application.id}: '
+                'no priced product found in its approved segments.'
+            ),
+        )
+    return max(prices)
+
+
 def _build_review_email_params(db: Session, application: models.Application) -> dict:
     params = {
         'first_name': application.first_name
@@ -170,15 +195,25 @@ def _build_review_email_params(db: Session, application: models.Application) -> 
             'approved_phase_names': phase_names,
         }
 
-    # Deposit section — only set the active variant as an object with deposit_amount
-    deposit_ctx = {'deposit_amount': 600}
-    discount = application.discount_assigned
-    if discount is not None and discount >= 100:
-        params['deposit_waived'] = deposit_ctx
+    # Deposit section — only set the active variant as an object so the
+    # variables inside its Mustache section resolve in Postmark.
+    # discount_assigned is a percentage (e.g. 0, 25, 30, 100) applied to the
+    # deposit, so the effective deposit is what the volunteer actually pays.
+    deposit_amount = _deposit_base_amount(application)
+    discount = application.discount_assigned or 0
+    effective_deposit = round(deposit_amount * (1 - discount / 100))
+    if effective_deposit <= 0:
+        params['deposit_waived'] = {'deposit_amount': deposit_amount}
     elif _is_ticketholder(db, application.citizen_id):
-        params['ticket_holder_credit'] = deposit_ctx
+        params['ticket_holder_credit'] = {'deposit_amount': deposit_amount}
+    elif discount > 0:
+        params['discounted_deposit'] = {
+            'deposit_amount': effective_deposit,
+            'original_deposit_amount': deposit_amount,
+            'discount': discount,
+        }
     else:
-        params['requires_refundable_deposit'] = deposit_ctx
+        params['requires_refundable_deposit'] = {'deposit_amount': deposit_amount}
 
     popup_slug = application.popup_city.slug if application.popup_city else None
     params['confirmation_form_link'] = get_popup_frontend_url(popup_slug)

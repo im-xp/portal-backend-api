@@ -344,14 +344,27 @@ def test_review_application_coordinator_notes_patch_semantics(
     assert 'coordinator_notes' not in third_response.json()
 
 
-def _create_segment(db_session, popup_city_id, name, slug):
+def _create_segment(db_session, popup_city_id, name, slug, price=600.0):
     from app.api.product_segments.models import ProductSegment
+    from app.api.products.models import Product
+
+    product = Product(
+        name=name,
+        slug=f'{slug}-deposit',
+        price=price,
+        popup_city_id=popup_city_id,
+        category='deposit',
+        is_active=True,
+    )
+    db_session.add(product)
+    db_session.flush()
 
     segment = ProductSegment(
         name=name,
         slug=slug,
         popup_city_id=popup_city_id,
     )
+    segment.products.append(product)
     db_session.add(segment)
     db_session.commit()
     return segment
@@ -450,6 +463,93 @@ def test_review_application_deposit_waived_when_full_discount(
     single = params['has_single_approved_phase']
     assert single['single_phase']['name'] == 'Short Build'
     assert 'has_multiple_approved_phases' not in params
+
+
+def test_review_application_deposit_discounted_when_partial_discount(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'Short Build',
+        'short-build',
+    )
+
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 25,
+            'segment_slugs': ['short-build'],
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    params = mock_send_mail.call_args.kwargs['params']
+
+    # 25% off the $600 deposit -> volunteer pays $450
+    assert params['discounted_deposit'] == {
+        'deposit_amount': 450,
+        'original_deposit_amount': 600,
+        'discount': 25,
+    }
+    assert 'deposit_waived' not in params
+    assert 'requires_refundable_deposit' not in params
+    assert 'ticket_holder_credit' not in params
+
+
+def test_review_application_deposit_derived_from_product_price(
+    client,
+    auth_headers,
+    test_application,
+    db_session,
+    mock_email_template,
+    mock_send_mail,
+):
+    # Segment whose product is priced differently than the default fallback.
+    _create_segment(
+        db_session,
+        test_application['popup_city_id'],
+        'Short Build',
+        'short-build',
+        price=800.0,
+    )
+
+    create_response = client.post(
+        '/applications/', json=test_application, headers=auth_headers
+    )
+    application_id = create_response.json()['id']
+
+    response = client.patch(
+        f'/applications/{application_id}/review',
+        json={
+            'status': ApplicationStatus.ACCEPTED.value,
+            'discount_assigned': 25,
+            'segment_slugs': ['short-build'],
+        },
+        headers={'x-api-key': settings.APPLICATION_REVIEW_API_KEY},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    params = mock_send_mail.call_args.kwargs['params']
+
+    # 25% off the $800 product -> volunteer pays $600
+    assert params['discounted_deposit'] == {
+        'deposit_amount': 600,
+        'original_deposit_amount': 800,
+        'discount': 25,
+    }
 
 
 def test_review_application_ticketholder_credit(
